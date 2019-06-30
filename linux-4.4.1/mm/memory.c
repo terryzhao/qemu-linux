@@ -79,7 +79,7 @@
 #ifndef CONFIG_NEED_MULTIPLE_NODES
 /* use the per-pgdat data instead for discontigmem - mbligh */
 unsigned long max_mapnr;
-struct page *mem_map;
+struct page *mem_map; //系统中所有的物理内存页面
 
 EXPORT_SYMBOL(max_mapnr);
 EXPORT_SYMBOL(mem_map);
@@ -2769,6 +2769,7 @@ static int __do_fault(struct vm_area_struct *vma, unsigned long address,
 	vmf.page = NULL;
 	vmf.cow_page = cow_page;
 
+    //调用定义好的fault函数，确保将所需的文件数据读入到映射页
 	ret = vma->vm_ops->fault(vma, &vmf);
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		return ret;
@@ -3286,15 +3287,17 @@ static int handle_pte_fault(struct mm_struct *mm,
 	 */
 	entry = *pte;
 	barrier();
-	if (!pte_present(entry)) {
-		if (pte_none(entry)) {
+	if (!pte_present(entry)) {//如果页不在主存中
+		if (pte_none(entry)) {//页表项内容为0，表明进程未访问过该页
 			if (vma_is_anonymous(vma))
+                ///*否则分配匿名页*/
 				return do_anonymous_page(mm, vma, address,
 							 pte, pmd, flags);
 			else
 				return do_fault(mm, vma, address, pte, pmd,
 						flags, entry);
 		}
+        /*页不在主存中，但是页表项保存了相关信息，则表明该页被内核换出，则要进行换入操作*/
 		return do_swap_page(mm, vma, address,
 					pte, pmd, flags, entry);
 	}
@@ -3306,8 +3309,10 @@ static int handle_pte_fault(struct mm_struct *mm,
 	spin_lock(ptl);
 	if (unlikely(!pte_same(*pte, entry)))
 		goto unlock;
+    ///* 页表已经建立，且也贮存在物理内存中，因为写操作触发了缺页中断，即为COW的缺页中断 */
 	if (flags & FAULT_FLAG_WRITE) {
 		if (!pte_write(entry))
+            /* 处理Copy On Write的Write部分的缺页中断 */
 			return do_wp_page(mm, vma, address,
 					pte, pmd, ptl, entry);
 		entry = pte_mkdirty(entry);

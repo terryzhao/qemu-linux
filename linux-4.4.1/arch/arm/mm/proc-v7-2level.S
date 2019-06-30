@@ -79,6 +79,11 @@ ENDPROC(cpu_ca8_switch_mm)
  *	- ext	- value for extended PTE bits
  */
 ENTRY(cpu_v7_set_pte_ext)
+/*
+r0:页表项地址
+r1:页表属性|物理地址偏移
+将页表属性r1配置给页表项r0
+*/
 #ifdef CONFIG_MMU
 	str	r1, [r0]			@ linux version
 

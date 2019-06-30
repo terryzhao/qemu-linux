@@ -525,13 +525,24 @@ asmlinkage __visible void __init start_kernel(void)
 	boot_cpu_init();
 	page_address_init();
 	pr_notice("%s", linux_banner);
+    //设置特定架构的信息,同时初始化memblock
 	setup_arch(&command_line);
+    //初始化CPU屏蔽字
 	mm_init_cpumask(&init_mm);
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();
+    /*
+     *函数(查看定义)给每个CPU分配内存，并拷贝.data.percpu段的数据. 为系统中的每个CPU的per_cpu变量申请空间.
+     *在SMP系统中, setup_per_cpu_areas初始化源代码中(使用per_cpu宏)定义的静态per-cpu变量, 这种变量对系统中每个CPU都有一个独立的副本. 
+     *此类变量保存在内核二进制影像的一个独立的段中, setup_per_cpu_areas的目的就是为系统中各个CPU分别创建一份这些数据的副本
+     *在非SMP系统中这是一个空操作
+     * 
+    */
 	setup_per_cpu_areas();
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
 
+    //初始化内存结点和内段区域
+    //建立并初始化结点和内存域的数据结构
 	build_all_zonelists(NULL, NULL);
 	page_alloc_init();
 
@@ -556,6 +567,8 @@ asmlinkage __visible void __init start_kernel(void)
 	vfs_caches_init_early();
 	sort_main_extable();
 	trap_init();
+    //建立了内核的内存分配器, 其中通过mem_init停用bootmem分配器并迁移到实际的内存管理器(比如伙伴系统)
+    //然后调用kmem_cache_init函数初始化内核内部用于小块内存区的分配器
 	mm_init();
 
 	/*
@@ -598,6 +611,7 @@ asmlinkage __visible void __init start_kernel(void)
 	early_boot_irqs_disabled = false;
 	local_irq_enable();
 
+    //在kmem_cache_init之后, 完善分配器的缓存机制,　当前3个可用的内核内存分配器slab, slob, slub都会定义此函数
 	kmem_cache_init_late();
 
 	/*
@@ -630,7 +644,14 @@ asmlinkage __visible void __init start_kernel(void)
 #endif
 	page_ext_init();
 	debug_objects_mem_init();
+    //Kmemleak工作于内核态，Kmemleak 提供了一种可选的内核泄漏检测，其方法类似于跟踪内存收集器。
+    //当独立的对象没有被释放时，其报告记录在 /sys/kernel/debug/kmemleak中, Kmemcheck能够帮助定位大多数内存错误的上下文
 	kmemleak_init();
+    //初始化CPU高速缓存行, 为pagesets的第一个数组元素分配内存,
+    //换句话说, 其实就是第一个系统处理器分配由于在分页情况下，
+    //每次存储器访问都要存取多级页表，这就大大降低了访问速度。
+    //所以，为了提高速度，在CPU中设置一个最近存取页面的高速缓存硬件机制，
+    //当进行存储器访问时，先检查要访问的页面是否在高速缓存中.
 	setup_per_cpu_pageset();
 	numa_policy_init();
 	if (late_time_init)

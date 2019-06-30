@@ -36,11 +36,11 @@
 #define PAGE_ALLOC_COSTLY_ORDER 3
 
 enum {
-	MIGRATE_UNMOVABLE,
-	MIGRATE_MOVABLE,
-	MIGRATE_RECLAIMABLE,
-	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */
-	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
+	MIGRATE_UNMOVABLE,   //不可移动页, 核心内核分配的大多数内存属于该类别
+	MIGRATE_MOVABLE,     //可移动页, 属于用户空间应用程序的页属于该类别. 它们是通过页表映射的, 如果它们复制到新位置，页表项可以相应地更新，应用程序不会注意到任何事
+	MIGRATE_RECLAIMABLE, //可回收页, 例如，映射自文件的数据属于该类别,kswapd守护进程会根据可回收页访问的频繁程度，周期性释放此类内存. , 页面回收本身就是一个复杂的过程内核会在可回收页占据了太多内存时进行回收, 在内存短缺(即分配失败)时也可以发起页面回收.
+	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */ //是per_cpu_pageset, 即用来表示每CPU页框高速缓存的数据结构中的链表的迁移类型数目
+	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES, //在罕见的情况下，内核需要分配一个高阶的页面块而不能休眠.如果向具有特定可移动性的列表请求分配内存失败，这种紧急情况下可从MIGRATE_HIGHATOMIC中分配内存
 #ifdef CONFIG_CMA
 	/*
 	 * MIGRATE_CMA migration type is designed to mimic the way
@@ -54,13 +54,18 @@ enum {
 	 * is that a range of pageblocks must be aligned to
 	 * MAX_ORDER_NR_PAGES should biggest page be bigger then
 	 * a single pageblock.
+     * 对于MIGRATE_CMA类型, 其中在我们使用ARM等嵌入式Linux系统的时候, 
+     * 一个头疼的问题是GPU, Camera, HDMI等都需要预留大量连续内存，这部分内存平时不用，
+     * 但是一般的做法又必须先预留着. 
+     * 目前, Marek Szyprowski和Michal Nazarewicz实现了一套全新的Contiguous Memory Allocator. 
+     * 通过这套机制, 我们可以做到不预留内存，这些内存平时是可用的，只有当需要的时候才被分配给Camera，HDMI等设备.
 	 */
-	MIGRATE_CMA,
+	MIGRATE_CMA, //Linux内核最新的连续内存分配器(CMA), 用于避免预留大块内存
 #endif
 #ifdef CONFIG_MEMORY_ISOLATION
-	MIGRATE_ISOLATE,	/* can't allocate from here */
+	MIGRATE_ISOLATE,	/* can't allocate from here */ //是一个特殊的虚拟区域, 用于跨越NUMA结点移动物理内存页. 在大型系统上, 它有益于将物理内存页移动到接近于使用该页最频繁的CPU.
 #endif
-	MIGRATE_TYPES
+	MIGRATE_TYPES //只是表示迁移类型的数目, 也不代表具体的区域
 };
 
 #ifdef CONFIG_CMA
@@ -90,8 +95,10 @@ static inline int get_pfnblock_migratetype(struct page *page, unsigned long pfn)
 }
 
 struct free_area {
-	struct list_head	free_list[MIGRATE_TYPES];
-	unsigned long		nr_free;
+    //是用于连接空闲页的链表. 页链表包含大小相同的连续内存区
+	struct list_head	free_list[MIGRATE_TYPES]; 	
+    //指定了当前内存区中空闲页块的数目（对0阶内存区逐页计算，对1阶内存区计算页对的数目，对2阶内存区计算4页集合的数目，依次类推
+    unsigned long		nr_free; 
 };
 
 struct pglist_data;
@@ -847,6 +854,7 @@ extern char numa_zonelist_order[];
 
 #ifndef CONFIG_NEED_MULTIPLE_NODES
 
+//UMA 结构下只有一个node, numa体系每个node对应一个memory bank
 extern struct pglist_data contig_page_data;
 #define NODE_DATA(nid)		(&contig_page_data)
 #define NODE_MEM_MAP(nid)	mem_map

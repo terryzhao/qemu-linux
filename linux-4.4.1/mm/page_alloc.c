@@ -1437,10 +1437,15 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
 /*
  * This array describes the order lists are fallen back to when
  * the free lists for the desirable migrate type are depleted
+ * 该数组描述了指定迁移类型的空闲列表耗尽时
+ * 其他空闲列表在备用列表中的次序
  */
 static int fallbacks[MIGRATE_TYPES][4] = {
+    //  分配不可移动页失败的备用列表
 	[MIGRATE_UNMOVABLE]   = { MIGRATE_RECLAIMABLE, MIGRATE_MOVABLE,   MIGRATE_TYPES },
+     //  分配可回收页失败时的备用列表
 	[MIGRATE_RECLAIMABLE] = { MIGRATE_UNMOVABLE,   MIGRATE_MOVABLE,   MIGRATE_TYPES },
+    //  分配可移动页失败时的备用列表
 	[MIGRATE_MOVABLE]     = { MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE, MIGRATE_TYPES },
 #ifdef CONFIG_CMA
 	[MIGRATE_CMA]         = { MIGRATE_TYPES }, /* Never used */
@@ -3167,6 +3172,7 @@ got_pg:
 
 /*
  * This is the 'heart' of the zoned buddy allocator.
+ * 伙伴系统的心脏
  */
 struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
@@ -4521,7 +4527,9 @@ static void __meminit zone_init_free_lists(struct zone *zone)
 {
 	unsigned int order, t;
 	for_each_migratetype_order(order, t) {
+        /*链表初始化为空链表*/
 		INIT_LIST_HEAD(&zone->free_area[order].free_list[t]);
+        /*内存块数量初始化为0*/
 		zone->free_area[order].nr_free = 0;
 	}
 }

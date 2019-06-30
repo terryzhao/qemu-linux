@@ -734,17 +734,23 @@ static pte_t * __init early_pte_alloc(pmd_t *pmd, unsigned long addr, unsigned l
 	return pte_offset_kernel(pmd, addr);
 }
 
+//虚拟地址区间非1M对齐时，如下方式MMU映射，即创建页表：
 static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
 				  unsigned long end, unsigned long pfn,
 				  const struct mem_type *type)
 {
+    /* 此时申请页表的地址（一个页表项4byte，一个pmd有512个页表项）页表的基地址会赋值给pmd ，__pmd_populate中完成赋值*/
 	pte_t *pte = early_pte_alloc(pmd, addr, type->prot_l1);
 	do {
+        /*为每一页配置页表属性，注意此时用到了mem_types定义的属性*/
 		set_pte_ext(pte, pfn_pte(pfn, __pgprot(type->prot_pte)), 0);
 		pfn++;
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 }
 
+
+//4 页表初始化：
+//虚拟地址区间1M时，如下方式MMU映射：
 static void __init __map_init_section(pmd_t *pmd, unsigned long addr,
 			unsigned long end, phys_addr_t phys,
 			const struct mem_type *type)
@@ -772,10 +778,16 @@ static void __init __map_init_section(pmd_t *pmd, unsigned long addr,
 	flush_pmd_entry(p);
 }
 
+//3页三级目录初始化：
 static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 				      unsigned long end, phys_addr_t phys,
 				      const struct mem_type *type)
 {
+
+    /*
+    页三级目录地址，因为不使用页三级目录，所以页三级目录地址等于页二级目录，当然也等于页全局目录地址。
+    为实现软件兼容性所以代码中还保留了页三级目录的处理流程，只不过它的地址即是页全局目录
+    */
 	pmd_t *pmd = pmd_offset(pud, addr);
 	unsigned long next;
 
@@ -790,10 +802,13 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 		 * Try a section mapping - addr, next and phys must all be
 		 * aligned to a section boundary.
 		 */
+        /*if；else都有可能执行到*/
+		/* 当我们创建页表项的虚拟地址区间是1M对齐时 */
 		if (type->prot_sect &&
 				((addr | next | phys) & ~SECTION_MASK) == 0) {
 			__map_init_section(pmd, addr, next, phys, type);
 		} else {
+            /* 当我们创建页表项的虚拟地址区间非1M对齐时 */
 			alloc_init_pte(pmd, addr, next,
 						__phys_to_pfn(phys), type);
 		}
@@ -803,15 +818,22 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 	} while (pmd++, addr = next, addr != end);
 }
 
+//2 页二级目录初始化：
 static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
 				  unsigned long end, phys_addr_t phys,
 				  const struct mem_type *type)
 {
+
+    /*
+    页二级目录地址，因为不使用页二级目录，所以页二级目录地址等于页全局目录地址。
+    为实现软件兼容性所以代码中还保留了页二级目录的处理流程，只不过它的地址即是页全局目录
+    */
 	pud_t *pud = pud_offset(pgd, addr);
 	unsigned long next;
 
 	do {
 		next = pud_addr_end(addr, end);
+        /*页三级目录初始化*/
 		alloc_init_pmd(pud, addr, next, phys, type);
 		phys += next - addr;
 	} while (pud++, addr = next, addr != end);
@@ -903,6 +925,7 @@ static void __init create_mapping(struct map_desc *md)
 			(long long)__pfn_to_phys((u64)md->pfn), md->virtual);
 	}
 
+    /* mem_type中保存了页表属性和页中间目录的属性 */
 	type = &mem_types[md->type];
 
 #ifndef CONFIG_ARM_LPAE
@@ -916,6 +939,7 @@ static void __init create_mapping(struct map_desc *md)
 #endif
 
 	addr = md->virtual & PAGE_MASK;
+    /*phys对应物理地址，本函数实际上就是把phys映射到addr*/
 	phys = __pfn_to_phys(md->pfn);
 	length = PAGE_ALIGN(md->length + (md->virtual & ~PAGE_MASK));
 
@@ -925,11 +949,17 @@ static void __init create_mapping(struct map_desc *md)
 		return;
 	}
 
+    /* 页表创建过程如下：*/
+    /*
+        1 init_task进程的页全局目录地址：swapper_pg_dir
+        以后每个进程都从这里拷贝页全局目录到各自的pgd里dup_mm->pgd_alloc中实现,cpu_switch_mm中切换。
+    */
 	pgd = pgd_offset_k(addr);
 	end = addr + length;
 	do {
 		unsigned long next = pgd_addr_end(addr, end);
 
+        /* 每个页全局目录 都要初始化页二级目录 */
 		alloc_init_pud(pgd, addr, next, phys, type);
 
 		phys += next - addr;

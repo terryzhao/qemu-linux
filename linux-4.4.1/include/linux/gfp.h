@@ -10,26 +10,31 @@
 struct vm_area_struct;
 
 /* Plain integer GFP bitmasks. Do not use this directly. */
-#define ___GFP_DMA		0x01u
-#define ___GFP_HIGHMEM		0x02u
-#define ___GFP_DMA32		0x04u
-#define ___GFP_MOVABLE		0x08u
-#define ___GFP_RECLAIMABLE	0x10u
-#define ___GFP_HIGH		0x20u
-#define ___GFP_IO		0x40u
-#define ___GFP_FS		0x80u
-#define ___GFP_COLD		0x100u
-#define ___GFP_NOWARN		0x200u
-#define ___GFP_REPEAT		0x400u
-#define ___GFP_NOFAIL		0x800u
-#define ___GFP_NORETRY		0x1000u
-#define ___GFP_MEMALLOC		0x2000u
-#define ___GFP_COMP		0x4000u
-#define ___GFP_ZERO		0x8000u
-#define ___GFP_NOMEMALLOC	0x10000u
-#define ___GFP_HARDWALL		0x20000u
-#define ___GFP_THISNODE		0x40000u
-#define ___GFP_ATOMIC		0x80000u
+//  区域修饰符
+#define ___GFP_DMA		0x01u         //从ZONE_DMA中分配内存
+#define ___GFP_HIGHMEM		0x02u     //从ZONE_HIGHMEM活ZONE_NORMAL中分配内存
+#define ___GFP_DMA32		0x04u     //从ZONE_DMA32中分配内存
+
+//  行为修饰符
+#define ___GFP_MOVABLE		0x08u     /* 页是可移动的 */
+#define ___GFP_RECLAIMABLE	0x10u     /* 页是可回收的 */
+#define ___GFP_HIGH		0x20u         /* 应该访问紧急分配池？ */
+#define ___GFP_IO		0x40u         /* 可以启动物理IO？ */
+#define ___GFP_FS		0x80u         /* 可以调用底层文件系统？ */
+#define ___GFP_COLD		0x100u        /* 需要非缓存的冷页 */
+#define ___GFP_NOWARN		0x200u    /* 禁止分配失败警告 */
+#define ___GFP_REPEAT		0x400u    /* 重试分配，可能失败 */
+#define ___GFP_NOFAIL		0x800u    /* 一直重试，不会失败 */
+#define ___GFP_NORETRY		0x1000u   /* 不重试，可能失败 */
+#define ___GFP_MEMALLOC		0x2000u   /* 使用紧急分配链表 */
+#define ___GFP_COMP		0x4000u       /* 增加复合页元数据 */
+#define ___GFP_ZERO		0x8000u       /* 成功则返回填充字节0的页 */
+
+//  类型修饰符
+#define ___GFP_NOMEMALLOC	0x10000u  /* 不使用紧急分配链表 */
+#define ___GFP_HARDWALL		0x20000u  /* 只允许在进程允许运行的CPU所关联的结点分配内存 */
+#define ___GFP_THISNODE		0x40000u  /* 没有备用结点，没有策略 */
+#define ___GFP_ATOMIC		0x80000u  /* 用于原子分配，在任何情况下都不能中断  */
 #define ___GFP_NOACCOUNT	0x100000u
 #define ___GFP_NOTRACK		0x200000u
 #define ___GFP_DIRECT_RECLAIM	0x400000u
@@ -234,17 +239,32 @@ struct vm_area_struct;
  *   that will fail quickly if memory is not available and will not wake
  *   kswapd on failure.
  */
+//用于原子分配，在任何情况下都不能中断, 可能使用紧急分配链表中的内存,
+//这个标志用在中断处理程序, 下半部, 持有自旋锁以及其他不能睡眠的地方
 #define GFP_ATOMIC	(__GFP_HIGH|__GFP_ATOMIC|__GFP_KSWAPD_RECLAIM)
+//这是一种常规的分配方式, 可能会阻塞.
+//这个标志在睡眠安全时用在进程的长下文代码中.
+//为了获取调用者所需的内存, 内核会尽力而为. 这个标志应该是首选标志
 #define GFP_KERNEL	(__GFP_RECLAIM | __GFP_IO | __GFP_FS)
+//与GFP_ATOMIC类似, 不同之处在于, 调用不会退给紧急内存池, 这就增加了内存分配失败的可能性
 #define GFP_NOWAIT	(__GFP_KSWAPD_RECLAIM)
+//这种分配可以阻塞, 但不会启动磁盘I/O,
+//这个标志在不能引发更多的磁盘I/O时阻塞I/O代码, 这可能导致令人不愉快的递归
 #define GFP_NOIO	(__GFP_RECLAIM)
+//这种分配在必要时可以阻塞, 但是也可能启动磁盘, 但是不会启动文件系统操作,
+//这个标志在你不鞥在启动另一个文件系统操作时, 用在文件系统部分的代码中
 #define GFP_NOFS	(__GFP_RECLAIM | __GFP_IO)
 #define GFP_TEMPORARY	(__GFP_RECLAIM | __GFP_IO | __GFP_FS | \
 			 __GFP_RECLAIMABLE)
+//这是一种常规的分配方式, 可能会阻塞. 这个标志用于为用户空间进程分配内存时使用
 #define GFP_USER	(__GFP_RECLAIM | __GFP_IO | __GFP_FS | __GFP_HARDWALL)
+//用于分配适用于DMA的内存, 当前是__GFP_DMA的同义词, GFP_DMA32也是__GFP_GMA32的同义词
 #define GFP_DMA		__GFP_DMA
 #define GFP_DMA32	__GFP_DMA32
+//是GFP_USER的一个扩展, 也用于用户空间. 它允许分配无法直接映射的高端内存.
+//使用高端内存页是没有坏处的，因为用户进程的地址空间总是通过非线性页表组织的
 #define GFP_HIGHUSER	(GFP_USER | __GFP_HIGHMEM)
+//用途类似于GFP_HIGHUSER，但分配将从虚拟内存域ZONE_MOVABLE进行
 #define GFP_HIGHUSER_MOVABLE	(GFP_HIGHUSER | __GFP_MOVABLE)
 #define GFP_TRANSHUGE	((GFP_HIGHUSER_MOVABLE | __GFP_COMP | \
 			 __GFP_NOMEMALLOC | __GFP_NORETRY | __GFP_NOWARN) & \
@@ -436,6 +456,7 @@ __alloc_pages_node(int nid, gfp_t gfp_mask, unsigned int order)
 static inline struct page *alloc_pages_node(int nid, gfp_t gfp_mask,
 						unsigned int order)
 {
+    //如果指定负的结点ID(不存在, 即NUMA_NO_NODE = -1), 内核自动地使用当前执行CPU对应的结点nid = numa_mem_id()
 	if (nid == NUMA_NO_NODE)
 		nid = numa_mem_id();
 
