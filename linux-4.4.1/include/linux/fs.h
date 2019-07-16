@@ -424,14 +424,14 @@ int pagecache_write_end(struct file *, struct address_space *mapping,
 				struct page *page, void *fsdata);
 
 struct address_space {
-	struct inode		*host;		/* owner: inode, block_device */
-	struct radix_tree_root	page_tree;	/* radix tree of all pages */
-	spinlock_t		tree_lock;	/* and lock protecting it */
-	atomic_t		i_mmap_writable;/* count VM_SHARED mappings */
-	struct rb_root		i_mmap;		/* tree of private and shared mappings */
+	struct inode		*host;		/* owner: inode, block_device */ //指向拥有该对象的节点
+	struct radix_tree_root	page_tree;	/* radix tree of all pages 表示拥有者的页基树(radix tree)的根*/
+	spinlock_t		tree_lock;	/* and lock protecting it 保护基树的自旋锁*/
+	atomic_t		i_mmap_writable;/* count VM_SHARED mappings 地址空间中共享内存映射的个数*/
+	struct rb_root		i_mmap;		/* tree of private and shared mappings radix优先搜索树的根*/
 	struct rw_semaphore	i_mmap_rwsem;	/* protect tree, count, list */
 	/* Protected by tree_lock together with the radix tree */
-	unsigned long		nrpages;	/* number of total pages */
+	unsigned long		nrpages;	/* number of total pages 所有者的页总数*/
 	unsigned long		nrshadows;	/* number of shadow entries */
 	pgoff_t			writeback_index;/* writeback starts here */
 	const struct address_space_operations *a_ops;	/* methods */
@@ -595,7 +595,7 @@ struct inode {
 
 	const struct inode_operations	*i_op;
 	struct super_block	*i_sb;
-	struct address_space	*i_mapping;
+	struct address_space	*i_mapping; //总是指向含有inode数据的页所有者的address_space对象
 
 #ifdef CONFIG_SECURITY
 	void			*i_security;
@@ -660,7 +660,7 @@ struct inode {
 #endif
 	const struct file_operations	*i_fop;	/* former ->i_op->default_file_ops */
 	struct file_lock_context	*i_flctx;
-	struct address_space	i_data;
+	struct address_space	i_data; //若页面Cache中页的所有者是文件
 	struct list_head	i_devices;
 	union {
 		struct pipe_inode_info	*i_pipe;
