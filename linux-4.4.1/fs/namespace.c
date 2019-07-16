@@ -938,6 +938,7 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 	if (!type)
 		return ERR_PTR(-ENODEV);
 
+    /*从slab中分配一个mnt*/
 	mnt = alloc_vfsmnt(name);
 	if (!mnt)
 		return ERR_PTR(-ENOMEM);
@@ -952,6 +953,7 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 		return ERR_CAST(root);
 	}
 
+    /*初始化mnt相关字段*/
 	mnt->mnt.mnt_root = root;
 	mnt->mnt.mnt_sb = root->d_sb;
 	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
@@ -2750,6 +2752,7 @@ static struct mnt_namespace *alloc_mnt_ns(struct user_namespace *user_ns)
 	struct mnt_namespace *new_ns;
 	int ret;
 
+    /*从cache中分配命名空间*/
 	new_ns = kmalloc(sizeof(struct mnt_namespace), GFP_KERNEL);
 	if (!new_ns)
 		return ERR_PTR(-ENOMEM);
@@ -2758,6 +2761,7 @@ static struct mnt_namespace *alloc_mnt_ns(struct user_namespace *user_ns)
 		kfree(new_ns);
 		return ERR_PTR(ret);
 	}
+    /*下面为相关字段的初始化*/
 	new_ns->ns.ops = &mntns_operations;
 	new_ns->seq = atomic64_add_return(1, &mnt_ns_seq);
 	atomic_set(&new_ns->count, 1);
@@ -2848,8 +2852,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  */
 static struct mnt_namespace *create_mnt_ns(struct vfsmount *m)
 {
+    /*分配命名空间*/
 	struct mnt_namespace *new_ns = alloc_mnt_ns(&init_user_ns);
 	if (!IS_ERR(new_ns)) {
+        /*下面为和mnt建立关系*/
 		struct mount *mnt = real_mount(m);
 		mnt->mnt_ns = new_ns;
 		new_ns->root = mnt;
@@ -3087,17 +3093,21 @@ static void __init init_mount_tree(void)
 	if (IS_ERR(mnt))
 		panic("Can't create rootfs");
 
+    /*为mnt创建命名空间*/
 	ns = create_mnt_ns(mnt);
 	if (IS_ERR(ns))
 		panic("Can't allocate initial namespace");
 
+    /*初始化进程的相关命名空间*/
 	init_task.nsproxy->mnt_ns = ns;
-	get_mnt_ns(ns);
+	get_mnt_ns(ns); /*命名空间的进程数加一*/
 
+    /*更新root的相关字段*/
 	root.mnt = mnt;
 	root.dentry = mnt->mnt_root;
 	mnt->mnt_flags |= MNT_LOCKED;
 
+    /*设置fs的当前路径和当前root*/
 	set_fs_pwd(current->fs, &root);
 	set_fs_root(current->fs, &root);
 }
@@ -3107,9 +3117,11 @@ void __init mnt_init(void)
 	unsigned u;
 	int err;
 
+    /*mnt cache初始化*/
 	mnt_cache = kmem_cache_create("mnt_cache", sizeof(struct mount),
 			0, SLAB_HWCACHE_ALIGN | SLAB_PANIC, NULL);
 
+    /*mount hashtable内存申请*/
 	mount_hashtable = alloc_large_system_hash("Mount-cache",
 				sizeof(struct hlist_head),
 				mhash_entries, 19,
@@ -3131,6 +3143,7 @@ void __init mnt_init(void)
 
 	kernfs_init();
 
+    /*sysfs文件系统初始化*/
 	err = sysfs_init();
 	if (err)
 		printk(KERN_WARNING "%s: sysfs_init error: %d\n",
@@ -3138,7 +3151,9 @@ void __init mnt_init(void)
 	fs_kobj = kobject_create_and_add("fs", NULL);
 	if (!fs_kobj)
 		printk(KERN_WARNING "%s: kobj create error\n", __func__);
+    /*初始化ramfs和rootfs*/
 	init_rootfs();
+    /*初始化mount tree*/
 	init_mount_tree();
 }
 

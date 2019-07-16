@@ -26,7 +26,7 @@
 #include "slab.h"
 
 enum slab_state slab_state;
-LIST_HEAD(slab_caches);
+LIST_HEAD(slab_caches); //slab_caches list 链表头
 DEFINE_MUTEX(slab_mutex);
 struct kmem_cache *kmem_cache;
 
@@ -262,18 +262,22 @@ struct kmem_cache *find_mergeable(size_t size, size_t align,
 	flags = kmem_cache_flags(size, flags, name, NULL);
 
 	list_for_each_entry_reverse(s, &slab_caches, list) {
+        //缓冲区属性的标识及slab的对象是否有特定的初始化构造函数，如果不允许合并则跳过
 		if (slab_unmergeable(s))
 			continue;
 
+        //判断当前的kmem_cache的对象大小是否小于要查找的，是则跳过
 		if (size > s->size)
 			continue;
 
+        //判断当前的kmem_cache与查找的标识类型是否一致，不是则跳过
 		if ((flags & SLAB_MERGE_SAME) != (s->flags & SLAB_MERGE_SAME))
 			continue;
 		/*
 		 * Check if alignment is compatible.
 		 * Courtesy of Adrian Drzewiecki
 		 */
+        //判断对齐量是否匹配
 		if ((s->size & ~(align - 1)) != s->size)
 			continue;
 
@@ -380,6 +384,9 @@ out_free_cache:
  * cacheline.  This can be beneficial if you're counting cycles as closely
  * as davem.
  */
+//该函数的入参name表示要创建的slab类型名称，size为该slab每个对象的大小，
+//align则是其内存对齐的标准， flags则表示申请内存的标识，
+//而ctor则是初始化每个对象的构造函数
 struct kmem_cache *
 kmem_cache_create(const char *name, size_t size, size_t align,
 		  unsigned long flags, void (*ctor)(void *))
@@ -394,7 +401,7 @@ kmem_cache_create(const char *name, size_t size, size_t align,
 
 	mutex_lock(&slab_mutex);
 
-	err = kmem_cache_sanity_check(name, size);
+	err = kmem_cache_sanity_check(name, size); //合法性检查，检查指定名称的slab是否已经创建，仅在CONFIG_DEBUG_VM开启的时候起作用
 	if (err) {
 		goto out_unlock;
 	}
@@ -407,6 +414,7 @@ kmem_cache_create(const char *name, size_t size, size_t align,
 	 */
 	flags &= CACHE_CREATE_MASK;
 
+    //检查已创建的slab是否存在与当前想要创建的slab的对象大小相匹配的，如果有则通过别名合并到一个缓存中进行访问
 	s = __kmem_cache_alias(name, size, align, flags, ctor);
 	if (s)
 		goto out_unlock;
@@ -761,6 +769,7 @@ bool slab_is_available(void)
 
 #ifndef CONFIG_SLOB
 /* Create a cache during boot when no slab services are available yet */
+//该函数用于创建分配算法缓存，主要是把boot_kmem_cache_node结构初始化了
 void __init create_boot_cache(struct kmem_cache *s, const char *name, size_t size,
 		unsigned long flags)
 {
@@ -768,11 +777,11 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name, size_t siz
 
 	s->name = name;
 	s->size = s->object_size = size;
-	s->align = calculate_alignment(flags, ARCH_KMALLOC_MINALIGN, size);
+	s->align = calculate_alignment(flags, ARCH_KMALLOC_MINALIGN, size); //calculate_alignment()主要用于计算内存对齐值
 
 	slab_init_memcg_params(s);
 
-	err = __kmem_cache_create(s, flags);
+	err = __kmem_cache_create(s, flags); //创建缓存的核心函数，其主要是把kmem_cache结构初始化了
 
 	if (err)
 		panic("Creation of kmalloc slab %s size=%zu failed. Reason %d\n",
@@ -790,7 +799,7 @@ struct kmem_cache *__init create_kmalloc_cache(const char *name, size_t size,
 		panic("Out of memory when creating slab %s\n", name);
 
 	create_boot_cache(s, name, size, flags);
-	list_add(&s->list, &slab_caches);
+	list_add(&s->list, &slab_caches); //添加到slab_cache中
 	s->refcount = 1;
 	return s;
 }

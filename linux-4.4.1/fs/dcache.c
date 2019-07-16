@@ -3390,6 +3390,7 @@ static void __init dcache_init_early(void)
 	if (hashdist)
 		return;
 
+    /*dentry hashtable的空间分配*/
 	dentry_hashtable =
 		alloc_large_system_hash("Dentry cache",
 					sizeof(struct hlist_bl_head),
@@ -3401,6 +3402,7 @@ static void __init dcache_init_early(void)
 					0,
 					0);
 
+    /*hashtable的各个链表初始化*/
 	for (loop = 0; loop < (1U << d_hash_shift); loop++)
 		INIT_HLIST_BL_HEAD(dentry_hashtable + loop);
 }
@@ -3414,6 +3416,7 @@ static void __init dcache_init(void)
 	 * but it is probably not worth it because of the cache nature
 	 * of the dcache. 
 	 */
+    /*从cache中申请目录cache*/
 	dentry_cache = KMEM_CACHE(dentry,
 		SLAB_RECLAIM_ACCOUNT|SLAB_PANIC|SLAB_MEM_SPREAD);
 
@@ -3421,6 +3424,7 @@ static void __init dcache_init(void)
 	if (!hashdist)
 		return;
 
+    /*下面的操作在前面的初始化中已经做了*/
 	dentry_hashtable =
 		alloc_large_system_hash("Dentry cache",
 					sizeof(struct hlist_bl_head),
@@ -3444,20 +3448,22 @@ EXPORT_SYMBOL(d_genocide);
 
 void __init vfs_caches_init_early(void)
 {
+    /*初始化两个hashtable*/
 	dcache_init_early();
 	inode_init_early();
 }
 
 void __init vfs_caches_init(void)
 {
+    /*为路径名申请的cache*/
 	names_cachep = kmem_cache_create("names_cache", PATH_MAX, 0,
 			SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);
 
-	dcache_init();
-	inode_init();
-	files_init();
+	dcache_init(); /*dentry及其相关内容初始化*/
+	inode_init(); /*inode初始化*/
+	files_init(); /*文件相关信息初始化，包括文件描述符表初始化*/
 	files_maxfiles_init();
-	mnt_init();
+	mnt_init(); /*mount 的初始化*/
 	bdev_cache_init();
-	chrdev_init();
+	chrdev_init(); /*字符设备驱动模型的初始化*/
 }

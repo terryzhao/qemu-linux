@@ -1371,6 +1371,7 @@ static void setup_object(struct kmem_cache *s, struct page *page,
 /*
  * Slab allocation and freeing
  */
+//通过Buddy伙伴算法进行内存分配
 static inline struct page *alloc_slab_page(struct kmem_cache *s,
 		gfp_t flags, int node, struct kmem_cache_order_objects oo)
 {
@@ -1415,6 +1416,7 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 	if ((alloc_gfp & __GFP_DIRECT_RECLAIM) && oo_order(oo) > oo_order(s->min))
 		alloc_gfp = (alloc_gfp | __GFP_NOMEMALLOC) & ~__GFP_DIRECT_RECLAIM;
 
+    //申请一个slab块
 	page = alloc_slab_page(s, alloc_gfp, node, oo);
 	if (unlikely(!page)) {
 		oo = s->min;
@@ -1447,19 +1449,23 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 
 	page->objects = oo_objects(oo);
 
+    //从该slab的首个page结构中获取其占用页面的order信息
 	order = compound_order(page);
 	page->slab_cache = s;
 	__SetPageSlab(page);
 	if (page_is_pfmemalloc(page))
 		SetPageSlabPfmemalloc(page);
 
+    //获取页面的虚拟地址
 	start = page_address(page);
 
+    //根据SLAB_POISON标识以确定是否memset()该slab的空间
 	if (unlikely(s->flags & SLAB_POISON))
 		memset(start, POISON_INUSE, PAGE_SIZE << order);
 
 	kasan_poison_slab(page);
 
+    //遍历每一个对象，通过setup_object()初始化对象信息以及set_freepointer()设置空闲页面指针，最终将slab初始完毕
 	for_each_object_idx(p, idx, s, start, page->objects) {
 		setup_object(s, page, p);
 		if (likely(idx < page->objects))
@@ -1483,6 +1489,7 @@ out:
 		NR_SLAB_RECLAIMABLE : NR_SLAB_UNRECLAIMABLE,
 		1 << oo_order(oo));
 
+    //更新内存管理节点的slab统计信息
 	inc_slabs_node(s, page_to_nid(page), page->objects);
 
 	return page;
@@ -3017,6 +3024,8 @@ static int slub_min_objects;
  * requested a higher mininum order then we start with that one instead of
  * the smallest order which will fit the object.
  */
+//该函数入参size表示对象大小，min_objects为最小对象量，max_order为最高阶，
+//fract_leftover表示slab的内存未使用率，而reserved则表示slab的保留空间大小
 static inline int slab_order(int size, int min_objects,
 				int max_order, int fract_leftover, int reserved)
 {
@@ -3056,12 +3065,18 @@ static inline int calculate_order(int size, int reserved)
 	 * First we increase the acceptable waste in a slab. Then
 	 * we reduce the minimum objects required in a slab.
 	 */
+    //经判断来自系统参数的最少对象数slub_min_objects是否已经配置，否则将会通过处理器数nr_cpu_ids计算最小对象数
 	min_objects = slub_min_objects;
 	if (!min_objects)
 		min_objects = 4 * (fls(nr_cpu_ids) + 1);
+    //计算最高阶下，slab对象最多个数
 	max_objects = order_objects(slub_max_order, size, reserved);
+    //取得最小值min_objects
 	min_objects = min(min_objects, max_objects);
 
+    //接着通过两个while循环，分别对min_objects及fraction进行调整，
+    //通过slab_order()计算找出最佳的阶数，其中fraction用来表示slab内存未使用率的指标，
+    //值越大表示允许的未使用内存越少，也就是说不断调整单个slab的对象数以及降低碎片指标，由此找到一个最佳值。
 	while (min_objects > 1) {
 		fraction = 16;
 		while (fraction >= 4) {
@@ -3142,6 +3157,7 @@ static void early_kmem_cache_node_alloc(int node)
 
 	BUG_ON(kmem_cache_node->size < sizeof(struct kmem_cache_node));
 
+    //创建kmem_cache_node结构空间对象的slab，如果创建的slab不在对应的内存节点中，则通过printk输出调试信息
 	page = new_slab(kmem_cache_node, GFP_NOWAIT, node);
 
 	BUG_ON(!page);
@@ -3186,9 +3202,20 @@ static int init_kmem_cache_nodes(struct kmem_cache *s)
 {
 	int node;
 
+    //遍历每个管理节点，并向kmem_cache_node全局管理控制块为所遍历的节点
+    //申请一个kmem_cache_node结构空间对象，并将kmem_cache的s内的成员node初始化
 	for_each_node_state(node, N_NORMAL_MEMORY) {
 		struct kmem_cache_node *n;
 
+        //slab_state如果是DOWN状态，表示slub分配器还没有初始化完毕，
+        //意味着kmem_cache_node结构空间对象的cache还没建立，
+        //暂时无法进行对象分配，此时将会通过early_kmem_cache_node_alloc()进行kmem_cache_node对象的slab进行创建
+        //这里补充说明一下：这是是slub分配算法初始化才会进入到的分支，
+        //即mm_init()->kmem_cache_init()->create_boot_cache()->create_boot_cache(kmem_cache_node,
+        //“kmem_cache_node”,sizeof(struct kmem_cache_node),SLAB_HWCACHE_ALIGN)-> 
+        //__kmem_cache_create()->kmem_cache_open()->init_kmem_cache_nodes()->early_kmem_cache_node_alloc()
+        //该流程才会进入到early_kmem_cache_node_alloc()该函数执行，然后执行完了在kmem_cache_init()调用完
+        //create_boot_cache()及register_hotmemory_notifier()随即将slab_state设置为PARTIAL表示已经可以分配kmem_cache_node。
 		if (slab_state == DOWN) {
 			early_kmem_cache_node_alloc(node);
 			continue;
@@ -3231,6 +3258,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	 * place the free pointer at word boundaries and this determines
 	 * the possible location of the free pointer.
 	 */
+    //将slab对象的大小舍入对与sizeof(void *)指针大小对齐，其为了能够将空闲指针存放至对象的边界中
 	size = ALIGN(size, sizeof(void *));
 
 #ifdef CONFIG_SLUB_DEBUG
@@ -3239,6 +3267,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	 * the slab may touch the object after free or before allocation
 	 * then we should never poison the object itself.
 	 */
+    //判断用户是否会在对象释放后或者申请前访问
 	if ((flags & SLAB_POISON) && !(flags & SLAB_DESTROY_BY_RCU) &&
 			!s->ctor)
 		s->flags |= __OBJECT_POISON;
@@ -3304,7 +3333,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	if (forced_order >= 0)
 		order = forced_order;
 	else
-		order = calculate_order(size, s->reserved);
+		order = calculate_order(size, s->reserved); //计算单slab的页框阶数，同时得出kmem_cache结构的oo、min、max等相关信息
 
 	if (order < 0)
 		return 0;
@@ -3332,12 +3361,14 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 
 static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 {
+    //获取设置缓存描述的标识，用于区分slub是否开启了调试
 	s->flags = kmem_cache_flags(s->size, flags, s->name, s->ctor);
 	s->reserved = 0;
 
 	if (need_reserve_slab_rcu && (s->flags & SLAB_DESTROY_BY_RCU))
 		s->reserved = sizeof(struct rcu_head);
 
+    //计算并初始化kmem_cache结构的各项数据
 	if (!calculate_sizes(s, -1))
 		goto error;
 	if (disable_higher_order_debug) {
@@ -3850,9 +3881,20 @@ static struct notifier_block slab_memory_callback_nb = {
  * that may be pointing to the wrong kmem_cache structure.
  */
 
+//bootstrap()函数主要是将临时kmem_cache向最终kmem_cache迁移，并修正相关指针，使其指向最终的kmem_cache
 static struct kmem_cache * __init bootstrap(struct kmem_cache *static_cache)
 {
 	int node;
+    /*
+     *申请kmem_cache空间，值得注意的是该函数申请调用kmem_cache_zalloc()->kmem_cache_alloc()->slab_alloc()，
+     其最终将会通过前面create_boot_cache()初始化创建的kmem_cache来申请slub空间来使用；
+     继而将bootstrap()入参的kmem_cache结构数据memcpy()至申请的空间中，
+     再接着会__flush_cpu_slab()刷新cpu的slab信息；
+     然后回通过for_each_node_state()遍历各个内存管理节点node,在通过get_node()获取对应节点的slab，
+     如果slab不为空这回遍历部分满slab链，修正每个slab指向kmem_cache的指针，
+     如果开启CONFIG_SLUB_DEBUG，则会遍历满slab链，设置每个slab指向kmem_cache的指针；
+     最后将kmem_cache添加到全局slab_caches链表中。
+     * */
 	struct kmem_cache *s = kmem_cache_zalloc(kmem_cache, GFP_NOWAIT);
 	struct kmem_cache_node *n;
 
@@ -3880,8 +3922,16 @@ static struct kmem_cache * __init bootstrap(struct kmem_cache *static_cache)
 	return s;
 }
 
+/*
+ * kmem_cache_init()函数流程，该函数首先是create_boot_cache()创建kmem_cache_node对象的slub管理框架，
+ * 然后register_hotmemory_notifier()注册热插拔内存内核通知链回调函数用于热插拔内存处理；
+ * 值得关注的是此时slab_state设置为PARTIAL，表示将分配算法状态改为PARTIAL，意味着已经可以分配kmem_cache_node对象了；
+ * 再往下则是create_boot_cache()创建kmem_cache对象的slub管理框架，至此整个slub分配算法所需的管理结构对象的slab已经初始化完毕；
+ * 不过由于前期的管理很多都是借用临时变量空间的，所以将会通过bootstrap()将kmem_cache_node和kmem_cache的管理结构迁入到slub管理框架的对象空间中，实现自管理；
+ * 最后就是通过create_kmalloc_caches()初始化一批后期内存分配中需要使用到的不同大小的slab缓存。*/
 void __init kmem_cache_init(void)
 {
+    ////声明静态变量，存储临时kmem_cache管理结构
 	static __initdata struct kmem_cache boot_kmem_cache,
 		boot_kmem_cache_node;
 
@@ -3891,9 +3941,11 @@ void __init kmem_cache_init(void)
 	kmem_cache_node = &boot_kmem_cache_node;
 	kmem_cache = &boot_kmem_cache;
 
+    ////申请slub缓冲区，管理数据放在临时结构中
 	create_boot_cache(kmem_cache_node, "kmem_cache_node",
 		sizeof(struct kmem_cache_node), SLAB_HWCACHE_ALIGN);
 
+    //注册内存变化回调
 	register_hotmemory_notifier(&slab_memory_callback_nb);
 
 	/* Able to allocate the per node structures */
@@ -3904,6 +3956,7 @@ void __init kmem_cache_init(void)
 				nr_node_ids * sizeof(struct kmem_cache_node *),
 		       SLAB_HWCACHE_ALIGN);
 
+    //从刚才挂在临时结构的缓冲区中申请kmem_cache的kmem_cache，并将管理数据拷贝到新申请的内存中
 	kmem_cache = bootstrap(&boot_kmem_cache);
 
 	/*
@@ -3918,6 +3971,7 @@ void __init kmem_cache_init(void)
 	create_kmalloc_caches(0);
 
 #ifdef CONFIG_SMP
+    //注册cpu变化回调
 	register_cpu_notifier(&slab_notifier);
 #endif
 
@@ -3937,6 +3991,8 @@ __kmem_cache_alias(const char *name, size_t size, size_t align,
 {
 	struct kmem_cache *s, *c;
 
+    //查找可合并slab的kmem_cache结构，如果找到的情况下，将kmem_cache的引用计数作自增，
+    //同时更新kmem_cache的对象大小及元数据偏移量，最后调用sysfs_slab_alias()在sysfs中添加别号
 	s = find_mergeable(size, align, flags, name, ctor);
 	if (s) {
 		s->refcount++;
@@ -3967,6 +4023,7 @@ int __kmem_cache_create(struct kmem_cache *s, unsigned long flags)
 {
 	int err;
 
+    //初始化slub结构
 	err = kmem_cache_open(s, flags);
 	if (err)
 		return err;
@@ -3976,6 +4033,7 @@ int __kmem_cache_create(struct kmem_cache *s, unsigned long flags)
 		return 0;
 
 	memcg_propagate_slab_attrs(s);
+    //将kmem_cache添加到sysfs
 	err = sysfs_slab_add(s);
 	if (err)
 		kmem_cache_close(s);

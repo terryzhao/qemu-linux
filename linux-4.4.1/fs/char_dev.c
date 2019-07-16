@@ -553,6 +553,7 @@ static struct kobject *base_probe(dev_t dev, int *part, void *data)
 
 void __init chrdev_init(void)
 {
+    /*字符设备驱动初始化*/
 	cdev_map = kobj_map_init(base_probe, &chrdevs_lock);
 }
 

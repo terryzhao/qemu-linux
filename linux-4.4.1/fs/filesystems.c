@@ -29,6 +29,8 @@
  *	Once the reference is obtained we can drop the spinlock.
  */
 
+/*注册过程实际上将表示各实际文件系统的 struct file_system_type 数据结构的实例化，
+ * 然后形成一个链表，内核中用一个名为 file_systems 的全局变量来指向该链表的表头。*/
 static struct file_system_type *file_systems;
 static DEFINE_RWLOCK(file_systems_lock);
 

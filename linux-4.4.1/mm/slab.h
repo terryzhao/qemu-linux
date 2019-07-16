@@ -324,7 +324,7 @@ static inline struct kmem_cache *cache_from_obj(struct kmem_cache *s, void *x)
  * The slab lists for all objects.
  */
 struct kmem_cache_node {
-	spinlock_t list_lock;
+	spinlock_t list_lock; /*保护结构内数据的自旋锁*/ 
 
 #ifdef CONFIG_SLAB
 	struct list_head slabs_partial;	/* partial list first, better asm code */
@@ -340,8 +340,8 @@ struct kmem_cache_node {
 #endif
 
 #ifdef CONFIG_SLUB
-	unsigned long nr_partial;
-	struct list_head partial;
+	unsigned long nr_partial; /*本节点的Partial slab的数目*/
+	struct list_head partial; /*Partial slab的双向循环队列*/
 #ifdef CONFIG_SLUB_DEBUG
 	atomic_long_t nr_slabs;
 	atomic_long_t total_objects;

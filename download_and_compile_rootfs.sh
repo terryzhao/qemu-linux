@@ -7,13 +7,13 @@ TOPDIR=`pwd`
 #wget https://busybox.net/downloads/busybox-1.31.0.tar.bz2
 #
 #tar -jxvf busybox-1.31.0.tar.bz2
-#cd $TOPDIR/busybox-1.31.0
-#
-#echo "compiling busybox"
-#make -j8 distclean
-#make -j8 defconfig
-#make -j8 CROSS_COMPILE=arm-linux-gnueabi-
-#make -j8 install CROSS_COMPILE=arm-linux-gnueabi-
+
+echo "compiling busybox"
+cd $TOPDIR/busybox-1.31.0
+make -j8 distclean
+make -j8 defconfig
+make -j8 CROSS_COMPILE=arm-linux-gnueabi-
+make -j8 install CROSS_COMPILE=arm-linux-gnueabi-
 
 cd $TOPDIR
 rm rootfs* -fr

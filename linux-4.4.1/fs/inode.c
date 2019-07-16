@@ -1859,6 +1859,7 @@ void __init inode_init_early(void)
 	if (hashdist)
 		return;
 
+    /*从cache中分配inode hashtable的内存空间*/
 	inode_hashtable =
 		alloc_large_system_hash("Inode-cache",
 					sizeof(struct hlist_head),
@@ -1870,6 +1871,7 @@ void __init inode_init_early(void)
 					0,
 					0);
 
+    /*初始化hashtable 的各个链表*/
 	for (loop = 0; loop < (1U << i_hash_shift); loop++)
 		INIT_HLIST_HEAD(&inode_hashtable[loop]);
 }
@@ -1879,6 +1881,7 @@ void __init inode_init(void)
 	unsigned int loop;
 
 	/* inode slab cache */
+    /*slab中分配inode缓存*/
 	inode_cachep = kmem_cache_create("inode_cache",
 					 sizeof(struct inode),
 					 0,
@@ -1890,6 +1893,7 @@ void __init inode_init(void)
 	if (!hashdist)
 		return;
 
+    /*分配数组对应空间*/
 	inode_hashtable =
 		alloc_large_system_hash("Inode-cache",
 					sizeof(struct hlist_head),
@@ -1901,6 +1905,7 @@ void __init inode_init(void)
 					0,
 					0);
 
+    /*初始化链表组*/
 	for (loop = 0; loop < (1U << i_hash_shift); loop++)
 		INIT_HLIST_HEAD(&inode_hashtable[loop]);
 }

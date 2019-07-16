@@ -584,8 +584,8 @@ struct posix_acl;
 struct inode {
 	umode_t			i_mode;
 	unsigned short		i_opflags;
-	kuid_t			i_uid;
-	kgid_t			i_gid;
+	kuid_t			i_uid;  /*文件拥有者标识号*/
+	kgid_t			i_gid;  /*文件拥有者所在组的标识号*/
 	unsigned int		i_flags;
 
 #ifdef CONFIG_FS_POSIX_ACL
@@ -602,7 +602,7 @@ struct inode {
 #endif
 
 	/* Stat data, not accessed from path walking */
-	unsigned long		i_ino;
+	unsigned long		i_ino; /*索引节点号*/
 	/*
 	 * Filesystems may only read i_nlink directly.  They shall use the
 	 * following functions for modification:
@@ -614,15 +614,15 @@ struct inode {
 		const unsigned int i_nlink;
 		unsigned int __i_nlink;
 	};
-	dev_t			i_rdev;
+	dev_t			i_rdev;  /*实际设备标识号*/
 	loff_t			i_size;
-	struct timespec		i_atime;
-	struct timespec		i_mtime;
-	struct timespec		i_ctime;
+	struct timespec		i_atime; /*文件的最后访问时间*/
+	struct timespec		i_mtime; /*文件的最后修改时间*/
+	struct timespec		i_ctime; /*节点的修改时间*/
 	spinlock_t		i_lock;	/* i_blocks, i_bytes, maybe i_size */
 	unsigned short          i_bytes;
-	unsigned int		i_blkbits;
-	blkcnt_t		i_blocks;
+	unsigned int		i_blkbits; /*块的位数*/
+	blkcnt_t		i_blocks; /*该文件所占块数*/
 
 #ifdef __NEED_I_SIZE_ORDERED
 	seqcount_t		i_size_seqcount;
@@ -635,7 +635,7 @@ struct inode {
 	unsigned long		dirtied_when;	/* jiffies of first dirtying */
 	unsigned long		dirtied_time_when;
 
-	struct hlist_node	i_hash;
+	struct hlist_node	i_hash; /*指向哈希链表的指针*/
 	struct list_head	i_io_list;	/* backing dev IO list */
 #ifdef CONFIG_CGROUP_WRITEBACK
 	struct bdi_writeback	*i_wb;		/* the associated cgroup wb */
@@ -651,7 +651,7 @@ struct inode {
 		struct hlist_head	i_dentry;
 		struct rcu_head		i_rcu;
 	};
-	u64			i_version;
+	u64			i_version;  /*版本号*/
 	atomic_t		i_count;
 	atomic_t		i_dio_count;
 	atomic_t		i_writecount;
@@ -816,6 +816,8 @@ struct fown_struct {
 /*
  * Track a single file's readahead state
  */
+/*预读标志、要预读的最多页面数、上次预读后的文
+  件指针、预读的字节数以及预读的页面数*/
 struct file_ra_state {
 	pgoff_t start;			/* where readahead started */
 	unsigned int size;		/* # of readahead pages */
@@ -837,24 +839,25 @@ static inline int ra_has_index(struct file_ra_state *ra, pgoff_t index)
 }
 
 struct file {
+     /*所有打开的文件形成一个链表*/
 	union {
 		struct llist_node	fu_llist;
 		struct rcu_head 	fu_rcuhead;
 	} f_u;
 	struct path		f_path;
 	struct inode		*f_inode;	/* cached value */
-	const struct file_operations	*f_op;
+	const struct file_operations	*f_op;   /*指向文件操作表的指针*/
 
 	/*
 	 * Protects f_ep_links, f_flags.
 	 * Must not be taken from IRQ context.
 	 */
 	spinlock_t		f_lock;
-	atomic_long_t		f_count;
-	unsigned int 		f_flags;
-	fmode_t			f_mode;
+	atomic_long_t		f_count;  /*文件对象的引用计数器*/
+	unsigned int 		f_flags;  /*打开文件时所指定的标志*/
+	fmode_t			f_mode; /*文件的打开模式*/
 	struct mutex		f_pos_lock;
-	loff_t			f_pos;
+	loff_t			f_pos; /*文件的当前位置*/
 	struct fown_struct	f_owner;
 	const struct cred	*f_cred;
 	struct file_ra_state	f_ra;
@@ -864,7 +867,7 @@ struct file {
 	void			*f_security;
 #endif
 	/* needed for tty driver, and maybe others */
-	void			*private_data;
+	void			*private_data; /* tty驱动程序所需*/
 
 #ifdef CONFIG_EPOLL
 	/* Used by fs/eventpoll.c to link all the hooks to this file */
@@ -1274,19 +1277,23 @@ struct sb_writers {
 };
 
 struct super_block {
-	struct list_head	s_list;		/* Keep this first */
+	struct list_head	s_list;		/* Keep this first */ /*指向超级块链表的指针*/
+    /*
+     *包含该具体文件系统的块设备标识符。
+     *例如，对于 /dev/hda1，其设备标识符为 0x301
+    */
 	dev_t			s_dev;		/* search index; _not_ kdev_t */
-	unsigned char		s_blocksize_bits;
-	unsigned long		s_blocksize;
-	loff_t			s_maxbytes;	/* Max file size */
+	unsigned char		s_blocksize_bits; /*块大小的值占用的位数，例如，如果块大小为1024字节，则该值为10*/
+	unsigned long		s_blocksize; /*该具体文件系统中数据块的大小，以字节为单位*/
+	loff_t			s_maxbytes;	/* Max file size */  /*文件的最大长度*/
 	struct file_system_type	*s_type;
-	const struct super_operations	*s_op;
-	const struct dquot_operations	*dq_op;
+	const struct super_operations	*s_op; /*指向某个特定的具体文件系统的用于超级块操作的函数集合的指针*/
+	const struct dquot_operations	*dq_op;/*指向磁盘限额方法的指针*/
 	const struct quotactl_ops	*s_qcop;
 	const struct export_operations *s_export_op;
 	unsigned long		s_flags;
 	unsigned long		s_iflags;	/* internal SB_I_* flags */
-	unsigned long		s_magic;
+	unsigned long		s_magic;    /*魔数，即该具体文件系统区别于其它文系统的一个标志*/
 	struct dentry		*s_root;
 	struct rw_semaphore	s_umount;
 	int			s_count;
