@@ -393,48 +393,71 @@ struct mm_rss_stat {
 
 struct kioctx_table;
 struct mm_struct {
+    //在地址空间中，mmap为地址空间的内存区域（用vm_area_struct结构来表示）链表，
+    //mm_rb用红黑树来存储，链表表示起来更加方便，红黑树表示起来更加方便查找。
+    //区别是，当虚拟区较少的时候，这个时候采用单链表，由mmap指向这个链表，
+    //当虚拟区多时此时采用红黑树的结构，由mm_rb指向这棵红黑树。这样就可以在大量数据的时候效率更高。
+    //所有的mm_struct结构体通过自身的mm_list域链接在一个双向链表上，该链表的首元素是init_mm内存描述符，代表init进程的地址空间。
+    //指向线性区对象的链表头
 	struct vm_area_struct *mmap;		/* list of VMAs */
+    //指向线性区对象的红黑树
 	struct rb_root mm_rb;
 	u32 vmacache_seqnum;                   /* per-thread vmacache */
 #ifdef CONFIG_MMU
+    //用来在进程地址空间中搜索有效的进程地址空间的函数
 	unsigned long (*get_unmapped_area) (struct file *filp,
 				unsigned long addr, unsigned long len,
 				unsigned long pgoff, unsigned long flags);
 #endif
+    //标识第一个分配文件内存映射的线性地址
 	unsigned long mmap_base;		/* base of mmap area */
 	unsigned long mmap_legacy_base;         /* base of mmap area in bottom-up allocations */
 	unsigned long task_size;		/* size of task vm space */
 	unsigned long highest_vm_end;		/* highest vma end address */
+    //指向页表的目录
 	pgd_t * pgd;
+    //mm_users	进程数量值（在多线程的情况下尤为适用）
+    //mm_count	引用计数（当计数为0的时候表示没有再被使用）
+    //使用mm_users和mm_count两个计数器是为了区别主使用计数器和使用该地址空间的进程的数目。
 	atomic_t mm_users;			/* How many users with user space? */
 	atomic_t mm_count;			/* How many references to "struct mm_struct" (users count as 1) */
 	atomic_long_t nr_ptes;			/* PTE page table pages */
 #if CONFIG_PGTABLE_LEVELS > 2
 	atomic_long_t nr_pmds;			/* PMD page table pages */
 #endif
+    //线性区的个数
 	int map_count;				/* number of VMAs */
 
+     //保护任务页表和引用计数的锁
 	spinlock_t page_table_lock;		/* Protects page tables and some counters */
 	struct rw_semaphore mmap_sem;
 
+    //mm_struct结构，第一个成员就是初始化的mm_struct结构，
 	struct list_head mmlist;		/* List of maybe swapped mm's.	These are globally strung
 						 * together off init_mm.mmlist, and are protected
 						 * by mmlist_lock
 						 */
 
 
+    //进程拥有的最大页表数目
 	unsigned long hiwater_rss;	/* High-watermark of RSS usage */
+    //进程线性区的最大页表数目
 	unsigned long hiwater_vm;	/* High-water virtual memory usage */
 
+    //进程地址空间的大小，锁住无法换页的个数，共享文件内存映射的页数，可执行内存映射中的页数
 	unsigned long total_vm;		/* Total pages mapped */
 	unsigned long locked_vm;	/* Pages that have PG_mlocked set */
 	unsigned long pinned_vm;	/* Refcount permanently increased */
 	unsigned long shared_vm;	/* Shared pages (files) */
 	unsigned long exec_vm;		/* VM_EXEC & ~VM_WRITE */
+    //用户态堆栈的页数，
 	unsigned long stack_vm;		/* VM_GROWSUP/DOWN */
 	unsigned long def_flags;
+    //维护代码段和数据段
 	unsigned long start_code, end_code, start_data, end_data;
+    //维护堆和栈
 	unsigned long start_brk, brk, start_stack;
+    //维护命令行参数，命令行参数的起始地址和最后地址，以及环境变量的起始地址和最后地址
 	unsigned long arg_start, arg_end, env_start, env_end;
 
 	unsigned long saved_auxv[AT_VECTOR_SIZE]; /* for /proc/PID/auxv */
@@ -452,6 +475,7 @@ struct mm_struct {
 	/* Architecture-specific MM context */
 	mm_context_t context;
 
+    //线性区的默认访问标志
 	unsigned long flags; /* Must use atomic bitops to access the bits */
 
 	struct core_state *core_state; /* coredumping support */

@@ -1239,6 +1239,11 @@ static inline void put_prev_task(struct rq *rq, struct task_struct *prev)
 #define for_each_class(class) \
    for (class = sched_class_highest; class; class = class->next)
 
+//idle_sched_class	每个cpu的第一个pid=0线程：swapper，是一个静态线程。调度类属于：idel_sched_class，所以在ps里面是看不到的。一般运行在开机过程和cpu异常的时候做dump
+//stop_sched_class	优先级最高的线程，会中断所有其他线程，且不会被其他任务打断。作用：1.发生在cpu_stop_cpu_callback 进行cpu之间任务migration；2.HOTPLUG_CPU的情况下关闭任务
+//rt_sched_class	RT，作用：实时线程
+//fair_sched_class	CFS（公平），作用：一般常规线程
+//目前系統中,Scheduling Class的优先级顺序为StopTask > RealTime > Fair > IdleTask
 extern const struct sched_class stop_sched_class;
 extern const struct sched_class dl_sched_class;
 extern const struct sched_class rt_sched_class;

@@ -90,6 +90,10 @@ static inline struct thread_info *current_thread_info(void) __attribute_const__;
 
 static inline struct thread_info *current_thread_info(void)
 {
+    //当前的栈指针(current_stack_pointer == sp)就是sp，
+    //THREAD_SIZE为8K，二进制的表示为0000 0000 0000 0000 0010 0000 0000 0000。
+    //~(THREAD_SIZE-1)的结果刚好为1111 1111 1111 1111 1110 0000 0000 0000，低十三位是全为零，
+    //也就是刚好屏蔽了esp的低十三位，最终得到的是thread_info的地址。
 	return (struct thread_info *)
 		(current_stack_pointer & ~(THREAD_SIZE - 1));
 }

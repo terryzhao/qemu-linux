@@ -218,9 +218,9 @@ typedef struct elf32_hdr{
 } Elf32_Ehdr;
 
 typedef struct elf64_hdr {
-  unsigned char	e_ident[EI_NIDENT];	/* ELF "magic number" */
-  Elf64_Half e_type;
-  Elf64_Half e_machine;
+  unsigned char	e_ident[EI_NIDENT];	/* ELF "magic number" 7F E L F*/
+  Elf64_Half e_type; //2表示可执行
+  Elf64_Half e_machine; //3: i386, 8: mips
   Elf64_Word e_version;
   Elf64_Addr e_entry;		/* Entry point virtual address */
   Elf64_Off e_phoff;		/* Program header table file offset */

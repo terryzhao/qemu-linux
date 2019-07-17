@@ -1377,9 +1377,21 @@ struct tlbflush_unmap_batch {
 };
 
 struct task_struct {
+    //TASK_RUNNING	表示进程要么正在执行，要么正要准备执行（已经就绪），正在等待cpu时间片的调度
+    //TASK_INTERRUPTIBLE	进程因为等待一些条件而被挂起（阻塞）而所处的状态。这些条件主要包括：硬中断、资源、一些信号……，一旦等待的条件成立，进程就会从该状态（阻塞）迅速转化成为就绪状态TASK_RUNNING
+    //TASK_UNINTERRUPTIBLE	意义与TASK_INTERRUPTIBLE类似，除了不能通过接受一个信号来唤醒以外，对于处于TASK_UNINTERRUPIBLE状态的进程，哪怕我们传递一个信号或者有一个外部中断都不能唤醒他们。只有它所等待的资源可用的时候，他才会被唤醒。这个标志很少用，但是并不代表没有任何用处，其实他的作用非常大，特别是对于驱动刺探相关的硬件过程很重要，这个刺探过程不能被一些其他的东西给中断，否则就会让进城进入不可预测的状态
+    //TASK_STOPPED	进程被停止执行，当进程接收到SIGSTOP、SIGTTIN、SIGTSTP或者SIGTTOU信号之后就会进入该状态
+    //TASK_TRACED	表示进程被debugger等进程监视，进程执行被调试程序所停止，当一个进程被另外的进程所监视，每一个信号都会让进程进入该状态
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
+    //进程内核栈, Linux把thread_info（线程描述符）和内核态的线程堆栈存放在一起，这块区域通常是8192K（占两个页框），其实地址必须是8192的整数倍。
+    //内核态的进程访问处于内核数据段的栈，这个栈不同于用户态的进程所用的栈。用户态进程所用的栈，是在进程线性地址空间中；
+    //而内核栈是当进程从用户空间进入内核空间时，特权级发生变化，需要切换堆栈，那么内核空间中使用的就是这个内核栈。
+    //因为内核控制路径使用很少的栈空间，所以只需要几千个字节的内核态堆栈。
+    //需要注意的是，内核态堆栈仅用于内核例程，Linux内核另外为中断提供了单独的硬中断栈和软中断栈
 	void *stack;
 	atomic_t usage;
+    //反应进程状态的信息，但不是运行状态，用于内核识别进程当前的状态
+    //flags成员的可能取值如下，这些宏以PF(ProcessFlag)开头
 	unsigned int flags;	/* per process flags, defined below */
 	unsigned int ptrace;
 
@@ -1394,10 +1406,18 @@ struct task_struct {
 #endif
 	int on_rq;
 
+    //static_prio	用于保存静态优先级，可以通过nice系统调用来进行修改
+    //rt_priority	用于保存实时优先级
+    //normal_prio	值取决于静态优先级和调度策略
+    //prio	        用于保存动态优先级
+    //实时优先级范围是0到MAX_RT_PRIO-1（即99），而普通进程的静态优先级范围是从MAX_RT_PRIO到MAX_PRIO-1（即100到139）。值越大静态优先级越低。
 	int prio, static_prio, normal_prio;
 	unsigned int rt_priority;
+    //sched_class	调度类
 	const struct sched_class *sched_class;
+    //se	普通进程的调用实体，每个进程都有其中之一的实体
 	struct sched_entity se;
+    //rt	实时进程的调用实体，每个进程都有其中之一的实体
 	struct sched_rt_entity rt;
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group *sched_task_group;
@@ -1413,8 +1433,16 @@ struct task_struct {
 	unsigned int btrace_seq;
 #endif
 
+    //policy	调度策略
+    //SCHED_NORMAL	（也叫SCHED_OTHER）用于普通进程，通过CFS调度器实现。SCHED_BATCH用于非交互的处理器消耗型进程。SCHED_IDLE是在系统负载很低时使用	CFS
+    //SCHED_BATCH	SCHED_NORMAL普通进程策略的分化版本。采用分时策略，根据动态优先级(可用nice()API设置），分配 CPU 运算资源。注意：这类进程比上述两类实时进程优先级低，换言之，在有实时进程存在时，实时进程优先调度。但针对吞吐量优化	CFS
+    //SCHED_IDLE	优先级最低，在系统空闲时才跑这类进程(如利用闲散计算机资源跑地外文明搜索，蛋白质结构分析等任务，是此调度策略的适用者）	CFS
+    //SCHED_FIFO	先入先出调度算法（实时调度策略），相同优先级的任务先到先服务，高优先级的任务可以抢占低优先级的任务	RT
+    //SCHED_RR	    轮流调度算法（实时调度策略），后者提供 Roound-Robin 语义，采用时间片，相同优先级的任务当用完时间片会被放到队列尾部，以保证公平性，同样，高优先级的任务可以抢占低优先级的任务。不同要求的实时任务可以根据需要用sched_setscheduler()API 设置策略	RT
+    //SCHED_DEADLINE	新支持的实时进程调度策略，针对突发型计算，且对延迟和完成时间高度敏感的任务适用。基于Earliest Deadline First (EDF) 调度算法
 	unsigned int policy;
 	int nr_cpus_allowed;
+    //cpus_allowed	用于控制进程可以在哪里处理器上运行
 	cpumask_t cpus_allowed;
 
 #ifdef CONFIG_PREEMPT_RCU
@@ -1440,15 +1468,24 @@ struct task_struct {
 	struct rb_node pushable_dl_tasks;
 #endif
 
+    //mm	进程所拥有的用户空间内存描述符，内核线程的mm为NULL
+    //active_mm	active_mm指向进程运行时所使用的内存描述符， 对于普通进程而言，这两个指针变量的值相同。但是内核线程kernel thread是没有进程地址空间的，所以内核线程的tsk->mm域是空（NULL）。但是内核必须知道用户空间包含了什么，因此它的active_mm成员被初始化为前一个运行进程的active_mm值。
+    //因此如果当前内核线程被调度之前运行的也是另外一个内核线程时候，那么其mm和avtive_mm都是NULL
 	struct mm_struct *mm, *active_mm;
 	/* per-thread vma caching */
 	u32 vmacache_seqnum;
 	struct vm_area_struct *vmacache[VMACACHE_SIZE];
 #if defined(SPLIT_RSS_COUNTING)
+    //rss_stat	用来记录缓冲信息
 	struct task_rss_stat	rss_stat;
 #endif
 /* task state */
+    // EXIT_ZOMBIE	进程的执行被终止，但是其父进程还没有使用wait()等系统调用来获知它的终止信息，此时进程成为僵尸进程
+    // EXIT_DEAD	进程的最终状态
 	int exit_state;
+    //exit_code	用于设置进程的终止代号，这个值要么是_exit()或exit_group()系统调用参数（正常终止），要么是由内核提供的一个错误代号（异常终止）。
+    //exit_signal	被置为-1时表示是某个线程组中的一员。只有当线程组的最后一个成员终止时，才会产生一个信号，以通知线程组的领头进程的父进程。
+    //pdeath_signal	用于判断父进程终止时发送信号。
 	int exit_code, exit_signal;
 	int pdeath_signal;  /*  The signal sent when the parent dies  */
 	unsigned long jobctl;	/* JOBCTL_*, siglock protected */
@@ -1457,13 +1494,16 @@ struct task_struct {
 	unsigned int personality;
 
 	/* scheduler bits, serialized by scheduler locks */
+    //sched_reset_on_fork	用于判断是否恢复默认的优先级或调度策略
 	unsigned sched_reset_on_fork:1;
 	unsigned sched_contributes_to_load:1;
 	unsigned sched_migrated:1;
 	unsigned :0; /* force alignment to the next boundary */
 
 	/* unserialized, strictly 'current' */
+    //in_execve	用于通知LSM是否被do_execve()函数所调用。详见补丁说明，参见LKML
 	unsigned in_execve:1; /* bit to tell LSMs we're in execve */
+    //in_iowait	用于判断是否进行iowait计数
 	unsigned in_iowait:1;
 #ifdef CONFIG_MEMCG
 	unsigned memcg_may_oom:1;
@@ -1472,6 +1512,7 @@ struct task_struct {
 	unsigned memcg_kmem_skip_account:1;
 #endif
 #ifdef CONFIG_COMPAT_BRK
+    //brk_randomized	用来确定对随机堆内存的探测。参见LKML上的介绍
 	unsigned brk_randomized:1;
 #endif
 
@@ -1479,6 +1520,9 @@ struct task_struct {
 
 	struct restart_block restart_block;
 
+    //Unix系统通过pid来标识进程，linux把不同的pid与系统中每个进程或轻量级线程关联，
+    //而unix程序员希望同一组线程具有共同的pid，遵照这个标准linux引入线程组的概念。
+    //一个线程组所有线程与领头线程具有相同的pid，存入tgid字段，getpid()返回当前进程的tgid值而不是pid的值。
 	pid_t pid;
 	pid_t tgid;
 
@@ -1490,14 +1534,20 @@ struct task_struct {
 	 * pointers to (original) parent process, youngest child, younger sibling,
 	 * older sibling, respectively.  (p->father can be replaced with
 	 * p->real_parent->pid)
+     * 表征进程亲属关系
 	 */
+    //指向其父进程，如果创建它的父进程不再存在，则指向PID为1的init进程
 	struct task_struct __rcu *real_parent; /* real parent process */
+    //指向其父进程，当它终止时，必须向它的父进程发送信号。它的值通常与real_parent相同
 	struct task_struct __rcu *parent; /* recipient of SIGCHLD, wait4() reports */
 	/*
 	 * children/sibling forms the list of my natural children
 	 */
+    //表示链表的头部，链表中的所有元素都是它的子进程
 	struct list_head children;	/* list of my children */
+    //用于把当前进程插入到兄弟链表中
 	struct list_head sibling;	/* linkage in my parent's children list */
+    //指向其所在进程组的领头进程
 	struct task_struct *group_leader;	/* threadgroup leader */
 
 	/*
@@ -1517,6 +1567,10 @@ struct task_struct {
 	int __user *set_child_tid;		/* CLONE_CHILD_SETTID */
 	int __user *clear_child_tid;		/* CLONE_CHILD_CLEARTID */
 
+    //utime/stime	用于记录进程在用户态/内核态下所经过的节拍数（定时器）
+    //prev_utime/prev_stime	先前的运行时间，请参考LKML的补丁说明
+    //utimescaled/stimescaled	用于记录进程在用户态/内核态的运行时间，但它们以处理器的频率为刻度
+    //gtime	以节拍计数的虚拟机运行时间（guest time）
 	cputime_t utime, stime, utimescaled, stimescaled;
 	cputime_t gtime;
 	struct prev_cputime prev_cputime;
@@ -1529,12 +1583,15 @@ struct task_struct {
 		VTIME_SYS,
 	} vtime_snap_whence;
 #endif
+    //nvcsw/nivcsw	是自愿（voluntary）/非自愿（involuntary）上下文切换计数
 	unsigned long nvcsw, nivcsw; /* context switch counts */
+    //start_time/real_start_time	进程创建时间，real_start_time还包含了进程睡眠时间，常用于/proc/pid/stat，补丁说明请参考LKML
 	u64 start_time;		/* monotonic time in nsec */
 	u64 real_start_time;	/* boot based time in nsec */
 /* mm fault and swap info: this can arguably be seen as either mm-specific or thread-specific */
 	unsigned long min_flt, maj_flt;
 
+    //cputime_expires	用来统计进程或进程组被跟踪的处理器时间，其中的三个成员对应着cpu_timers[3]的三个链表
 	struct task_cputime cputime_expires;
 	struct list_head cpu_timers[3];
 
@@ -1565,6 +1622,11 @@ struct task_struct {
 /* namespaces */
 	struct nsproxy *nsproxy;
 /* signal handlers */
+    //signal	指向进程的信号描述符
+    //sighand	指向进程的信号处理程序描述符
+    //blocked	表示被阻塞信号的掩码，real_blocked表示临时掩码
+    //pending	存放私有挂起信号的数据结构
+    //sas_ss_sp	是信号处理程序备用堆栈的地址，sas_ss_size表示堆栈的大小
 	struct signal_struct *signal;
 	struct sighand_struct *sighand;
 
