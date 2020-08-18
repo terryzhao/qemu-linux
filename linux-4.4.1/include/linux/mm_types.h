@@ -41,7 +41,7 @@ struct mem_cgroup;
  * allows the use of atomic double word operations on the flags/mapping
  * and lru list pointers also.
  */
-//对内存中的每个页都会创建struct page的一个实例. 
+//对内存中的每个页都会创建struct page的一个实例.
 //内核必须要保证page结构体足够的小，否则仅struct page就要占用大量的内存
 //出于节省内存的考虑，struct page中使用了大量的联合体union.
 struct page {
@@ -428,7 +428,7 @@ struct mm_struct {
     //线性区的个数
 	int map_count;				/* number of VMAs */
 
-     //保护任务页表和引用计数的锁
+	//保护任务页表和引用计数的锁
 	spinlock_t page_table_lock;		/* Protects page tables and some counters */
 	struct rw_semaphore mmap_sem;
 

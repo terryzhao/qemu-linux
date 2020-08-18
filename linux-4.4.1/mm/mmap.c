@@ -1282,26 +1282,26 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		if (!(file && path_noexec(&file->f_path)))
 			prot |= PROT_EXEC;
 
-	if (!(flags & MAP_FIXED))
+	if (!(flags & MAP_FIXED)) // 对于非MAP_FIXED，addr不能小于mmap_min_addr大小，如果小于则使用mmap_min_addr页对齐后的地址
 		addr = round_hint_to_min(addr);
 
 	/* Careful about overflows.. */
 	len = PAGE_ALIGN(len);
-	if (!len)
+	if (!len) // 这里不是判断len是否为0，而是检查len是否溢出
 		return -ENOMEM;
 
 	/* offset overflow? */
-	if ((pgoff + (len >> PAGE_SHIFT)) < pgoff)
+	if ((pgoff + (len >> PAGE_SHIFT)) < pgoff) // 检查offset是否溢出
 		return -EOVERFLOW;
 
 	/* Too many mappings? */
-	if (mm->map_count > sysctl_max_map_count)
+	if (mm->map_count > sysctl_max_map_count) // 进程中mmap个数限制，超出返回ENOMEM错误
 		return -ENOMEM;
 
 	/* Obtain the address to map to. we verify (or select) it and ensure
 	 * that it represents a valid section of the address space.
 	 */
-	addr = get_unmapped_area(file, addr, len, pgoff, flags);
+	addr = get_unmapped_area(file, addr, len, pgoff, flags); // 在创建新的map区域之前首先寻找一块足够大小的空闲区域，本函数就是用于查找未映射的区域，返回值addr就是这段空间的首地址
 	if (offset_in_page(addr))
 		return addr;
 
@@ -1319,11 +1319,11 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	if (mlock_future_check(mm, vm_flags, len))
 		return -EAGAIN;
 
-	if (file) {
+	if (file) { // 文件映射情况处理，主要更新vm_flags
 		struct inode *inode = file_inode(file);
 
 		switch (flags & MAP_TYPE) {
-		case MAP_SHARED:
+		case MAP_SHARED:  // 共享文件映射
 			if ((prot&PROT_WRITE) && !(file->f_mode&FMODE_WRITE))
 				return -EACCES;
 
@@ -1345,7 +1345,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 				vm_flags &= ~(VM_MAYWRITE | VM_SHARED);
 
 			/* fall through */
-		case MAP_PRIVATE:
+		case MAP_PRIVATE: // 私有文件映射
 			if (!(file->f_mode & FMODE_READ))
 				return -EACCES;
 			if (path_noexec(&file->f_path)) {
@@ -1363,9 +1363,9 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		default:
 			return -EINVAL;
 		}
-	} else {
+	} else { // 匿名映射情况处理
 		switch (flags & MAP_TYPE) {
-		case MAP_SHARED:
+		case MAP_SHARED: // 共享匿名映射
 			if (vm_flags & (VM_GROWSDOWN|VM_GROWSUP))
 				return -EINVAL;
 			/*
@@ -1374,7 +1374,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			pgoff = 0;
 			vm_flags |= VM_SHARED | VM_MAYSHARE;
 			break;
-		case MAP_PRIVATE:
+		case MAP_PRIVATE: // 私有匿名映射
 			/*
 			 * Set pgoff according to addr for anon_vma.
 			 */
@@ -1399,7 +1399,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			vm_flags |= VM_NORESERVE;
 	}
 
-	addr = mmap_region(file, addr, len, vm_flags, pgoff);
+	addr = mmap_region(file, addr, len, vm_flags, pgoff); // 实际创建vma
 	if (!IS_ERR_VALUE(addr) &&
 	    ((vm_flags & VM_LOCKED) ||
 	     (flags & (MAP_POPULATE | MAP_NONBLOCK)) == MAP_POPULATE))
@@ -1414,13 +1414,13 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	struct file *file = NULL;
 	unsigned long retval;
 
-	if (!(flags & MAP_ANONYMOUS)) {
+	if (!(flags & MAP_ANONYMOUS)) { // 对非匿名文件映射的检查，必须能根据文件句柄找到struct file
 		audit_mmap_fd(fd, flags);
 		file = fget(fd);
 		if (!file)
 			return -EBADF;
 		if (is_file_hugepages(file))
-			len = ALIGN(len, huge_page_size(hstate_file(file)));
+			len = ALIGN(len, huge_page_size(hstate_file(file))); // 根据file->f_op来判断是否是hugepage，然后进行hugepage页面对齐
 		retval = -EINVAL;
 		if (unlikely(flags & MAP_HUGETLB && !is_file_hugepages(file)))
 			goto out_fput;
@@ -1534,6 +1534,10 @@ static inline int accountable_mapping(struct file *file, vm_flags_t vm_flags)
 	return (vm_flags & (VM_NORESERVE | VM_SHARED | VM_WRITE)) == VM_WRITE;
 }
 
+// mmap_region()首先调用find_vma_links()查找是否已有vma线性区包含addr，如果有调用do_munmap()把这个vma干掉。
+// Linux不希望vma和vma之间存在空洞，只要新创建vma的flags属性和前面或者后面vma相同，就尝试合并成一个新的vma，减少slab缓存消耗量，同时也减少了空洞浪费。
+// 如果无法合并，那么只好新创建vma并对vma结构体初始化相关成员；根据vma是否有页锁定标志(VM_LOCKED)，决定是否立即分配物理页。
+// 最后将新建的vma插入进程空间vma红黑树中，并返回addr。
 unsigned long mmap_region(struct file *file, unsigned long addr,
 		unsigned long len, vm_flags_t vm_flags, unsigned long pgoff)
 {
@@ -1544,7 +1548,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	unsigned long charged = 0;
 
 	/* Check against address space limit. */
-	if (!may_expand_vm(mm, len >> PAGE_SHIFT)) {
+	if (!may_expand_vm(mm, len >> PAGE_SHIFT)) { // 检查当前total_vm+len是否查过RLIMIT_AS，确保虚拟映射可以进行
 		unsigned long nr_pages;
 
 		/*
@@ -1562,8 +1566,8 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 
 	/* Clear old maps */
 	while (find_vma_links(mm, addr, addr + len, &prev, &rb_link,
-			      &rb_parent)) {
-		if (do_munmap(mm, addr, len))
+			      &rb_parent)) { // 遍历该进程已有的vma红黑树，如果找到vma覆盖[addr, end]区域，那么返回0，表示找到。如果覆盖已有的vma区域，返回ENOMEM
+		if (do_munmap(mm, addr, len)) // 存在覆盖已有区域的情况，那么尝试取munmap这块区域。如果munmap成功返回0，不成功则mmap_region()失败
 			return -ENOMEM;
 	}
 
@@ -1580,7 +1584,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	/*
 	 * Can we just expand an old mapping?
 	 */
-	vma = vma_merge(mm, prev, addr, addr + len, vm_flags,
+	vma = vma_merge(mm, prev, addr, addr + len, vm_flags, // 至此表示已经可以找到合适的vma区域，原有映射是否可以被新的映射复用，减少因为vma导致的slab消耗和虚拟内存的空洞
 			NULL, file, pgoff, NULL, NULL_VM_UFFD_CTX);
 	if (vma)
 		goto out;
@@ -1590,13 +1594,13 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	 * specific mapper. the address has already been validated, but
 	 * not unmapped, but the maps are removed from the list.
 	 */
-	vma = kmem_cache_zalloc(vm_area_cachep, GFP_KERNEL);
+	vma = kmem_cache_zalloc(vm_area_cachep, GFP_KERNEL); // 在没有找到的情况下，新建一个vma
 	if (!vma) {
 		error = -ENOMEM;
 		goto unacct_error;
 	}
 
-	vma->vm_mm = mm;
+	vma->vm_mm = mm; // 初始化vma数据
 	vma->vm_start = addr;
 	vma->vm_end = addr + len;
 	vma->vm_flags = vm_flags;
@@ -1604,7 +1608,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	vma->vm_pgoff = pgoff;
 	INIT_LIST_HEAD(&vma->anon_vma_chain);
 
-	if (file) {
+	if (file) { // 如果是文件映射
 		if (vm_flags & VM_DENYWRITE) {
 			error = deny_write_access(file);
 			if (error)
@@ -1622,7 +1626,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		 * new file must not have been exposed to user-space, yet.
 		 */
 		vma->vm_file = get_file(file);
-		error = file->f_op->mmap(file, vma);
+		error = file->f_op->mmap(file, vma); // 调用文件操作函数集的mmap成员
 		if (error)
 			goto unmap_and_free_vma;
 
@@ -1637,13 +1641,13 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 
 		addr = vma->vm_start;
 		vm_flags = vma->vm_flags;
-	} else if (vm_flags & VM_SHARED) {
+	} else if (vm_flags & VM_SHARED) { // 共享匿名区
 		error = shmem_zero_setup(vma);
 		if (error)
 			goto free_vma;
 	}
 
-	vma_link(mm, vma, prev, rb_link, rb_parent);
+	vma_link(mm, vma, prev, rb_link, rb_parent); // 将新建的vma插入到进程地址空间的vma红黑树中，已经做一些计数更新等
 	/* Once vma denies write, undo our temporary denial count */
 	if (file) {
 		if (vm_flags & VM_SHARED)
@@ -1737,7 +1741,7 @@ unsigned long unmapped_area(struct vm_unmapped_area_info *info)
 
 	while (true) {
 		/* Visit left subtree if it looks promising */
-		gap_end = vma->vm_start;
+		gap_end = vma->vm_start; // 先从低地址开始查询
 		if (gap_end >= low_limit && vma->vm_rb.rb_left) {
 			struct vm_area_struct *left =
 				rb_entry(vma->vm_rb.rb_left,
@@ -1748,7 +1752,7 @@ unsigned long unmapped_area(struct vm_unmapped_area_info *info)
 			}
 		}
 
-		gap_start = vma->vm_prev ? vma->vm_prev->vm_end : 0;
+		gap_start = vma->vm_prev ? vma->vm_prev->vm_end : 0; // 当前结点rb_subtree_gap已经是最后一个可能满足这次分配
 check_current:
 		/* Check if current node has a suitable gap */
 		if (gap_start > high_limit)
@@ -1999,6 +2003,8 @@ arch_get_unmapped_area_topdown(struct file *filp, const unsigned long addr0,
 }
 #endif
 
+// get_unmapped_area()根据输入的addr，以及其它参数通过get_area()来找到一个满足条件的虚拟空间，返回这个虚拟空间的首地址。
+// get_area()是一个函数指针，有两种可能使用mm->get_unmapped_area()或者file->f_op->get_unmapped_area()。
 unsigned long
 get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 		unsigned long pgoff, unsigned long flags)
@@ -2014,8 +2020,8 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 	if (len > TASK_SIZE)
 		return -ENOMEM;
 
-	get_area = current->mm->get_unmapped_area;
-	if (file && file->f_op->get_unmapped_area)
+	get_area = current->mm->get_unmapped_area; // 使用mm_struct->get_unmapped_area()方法，即arch_get_unmapped_area()
+	if (file && file->f_op->get_unmapped_area) // 如果是文件映射，并且该文件的file_operations定义了get_unmapped_area方法，那么使用它实现定位虚拟区间
 		get_area = file->f_op->get_unmapped_area;
 	addr = get_area(file, addr, len, pgoff, flags);
 	if (IS_ERR_VALUE(addr))

@@ -31,7 +31,7 @@
  */
 typedef unsigned long pte_t;
 typedef unsigned long pmd_t;
-typedef unsigned long pgd_t[2];
+typedef unsigned long pgd_t[2]; //8字节
 typedef unsigned long pgprot_t;
 
 #define pte_val(x)      (x)

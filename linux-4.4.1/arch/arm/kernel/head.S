@@ -51,6 +51,10 @@
 	.globl	swapper_pg_dir
 	.equ	swapper_pg_dir, KERNEL_RAM_VADDR - PG_DIR_SIZE
 
+/*
+* 计算页表地址
+* r4 =  r8 + 0x8000 - 0x4000
+*/
 	.macro	pgtbl, rd, phys
 	add	\rd, \phys, #TEXT_OFFSET
 	sub	\rd, \rd, #PG_DIR_SIZE
@@ -172,13 +176,21 @@ ENDPROC(stext)
  * generally means mapping in the kernel code.
  *
  * r8 = phys_offset, r9 = cpuid, r10 = procinfo
- *
+ * phy_offset = 0x6000_0000, size=0x4000_0000
+ * PAGE_OFFSET = 0x8000_0000
+ * TEXT_OFFSET = 0x8000
  * Returns:
  *  r0, r3, r5-r7 corrupted
  *  r4 = physical page table address
+ *  r4 = PHYS_OFFSET+TEXT_OFFSET-PG_DIR_SIZE = 0x6000_4000
+ *
+ * PG_DIR_SIZE： 0x4000
+ * PROCINFO_MM_MMUFLAGS：0x8
+ * SECTION_SHIFT：20
+ * PMD_ORDER：2
  */
 __create_page_tables:
-	pgtbl	r4, r8				@ page table address
+	pgtbl	r4, r8				@ page table address 0x6000_4000
 
 	/*
 	 * Clear the swapper page table
@@ -221,7 +233,7 @@ __create_page_tables:
 #endif
 #endif
 
-	ldr	r7, [r10, #PROCINFO_MM_MMUFLAGS] @ mm_mmuflags
+	ldr	r7, [r10, #PROCINFO_MM_MMUFLAGS] @ mm_mmuflags  r10 = proc_info_list, 0x00011c0e
 
 	/*
 	 * Create identity mapping to cater for __enable_mmu.

@@ -16,7 +16,7 @@
  * + Level 1 descriptor (PMD)
  *   - common
  */
-#define PMD_TYPE_MASK		(_AT(pmdval_t, 3) << 0)
+#define PMD_TYPE_MASK		(_AT(pmdval_t, 3) << 0)   // 0 1 对应page table
 #define PMD_TYPE_FAULT		(_AT(pmdval_t, 0) << 0)
 #define PMD_TYPE_TABLE		(_AT(pmdval_t, 1) << 0)
 #define PMD_TYPE_SECT		(_AT(pmdval_t, 2) << 0)

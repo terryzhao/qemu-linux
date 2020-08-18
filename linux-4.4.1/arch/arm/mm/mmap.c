@@ -50,6 +50,7 @@ static unsigned long mmap_base(unsigned long rnd)
  *
  * We unconditionally provide this function for all cases, however
  * in the VIVT case, we optimise out the alignment rules.
+ * arch_get_unmapped_area()完成从低地址向高地址创建新的映射，而arch_get_unmapped_area_topdown()完成从高地址向低地址创建新的映射。
  */
 unsigned long
 arch_get_unmapped_area(struct file *filp, unsigned long addr,
@@ -71,7 +72,7 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	/*
 	 * We enforce the MAP_FIXED case.
 	 */
-	if (flags & MAP_FIXED) {
+	if (flags & MAP_FIXED) { // 这里可以看出MAP_FIXED不参与选址，固定地址创建
 		if (aliasing && flags & MAP_SHARED &&
 		    (addr - (pgoff << PAGE_SHIFT)) & (SHMLBA - 1))
 			return -EINVAL;
@@ -81,7 +82,7 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	if (len > TASK_SIZE)
 		return -ENOMEM;
 
-	if (addr) {
+	if (addr) { // 当addr非0，表示制定了一个特定的优先选用地址，内核会检查该区域是否与现存区域重叠，有find_vma()完成查找功能
 		if (do_align)
 			addr = COLOUR_ALIGN(addr, pgoff);
 		else
@@ -99,7 +100,7 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	info.high_limit = TASK_SIZE;
 	info.align_mask = do_align ? (PAGE_MASK & (SHMLBA - 1)) : 0;
 	info.align_offset = pgoff << PAGE_SHIFT;
-	return vm_unmapped_area(&info);
+	return vm_unmapped_area(&info); // 当addr为空或者指定的优选地址不满足分配条件时，内核必须遍历进程中可用的区域，设法找到一个大小适当的空闲区域，vm_unmapped_area()完成实际的工作
 }
 
 unsigned long

@@ -517,6 +517,11 @@ static void __init_memblock memblock_insert_region(struct memblock_type *type,
  * is allowed to overlap with existing ones - overlaps don't affect already
  * existing regions.  @type is guaranteed to be minimal (all neighbouring
  * compatible regions are merged) after the addition.
+ * 在内核启动阶段，也有内存管理的需求，但是此时伙伴系统并没有完成初始化。
+ * 在早期内核中使用bootmem机制，作为内核初始化阶段的内存分配器。
+ * 后来使用memblock作为内核初始化阶段内存分配器，用于内存分配和释放。
+ * CONFIG_NO_BOOTMEM用于决定是否使用bootmem，Vexpress使能，所以使用memblock作为初始化阶段的内存分配器。
+ * 因为bootmem和memblock两者API兼容，所以使用者无感。使用memblock的时候编译mm/nobootmem.c，调用memblock.c中的分配器接口。
  *
  * RETURNS:
  * 0 on success, -errno on failure.
@@ -609,6 +614,14 @@ int __init_memblock memblock_add_node(phys_addr_t base, phys_addr_t size,
 {
 	return memblock_add_range(&memblock.memory, base, size, nid, 0);
 }
+
+/* 
+ * memblock_add用于添加region到memblock.memory中；
+ * 在内核初始化阶段很多地方(比如哈arm_memblock_init)使用memblock_reserve将region添加到memblock.reserved。
+ * memblock_remove用于将一个region从memblock.memory中移除，
+ * memblock_free等用于将一个region从memblock.reserved中移除。
+ * 这里面的地址都是物理地址，所有的信息都在memblock这个全局变量中
+ */
 
 static int __init_memblock memblock_add_region(phys_addr_t base,
 						phys_addr_t size,

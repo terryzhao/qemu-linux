@@ -13,7 +13,7 @@ echo "Download linux 4.4.1"
 echo "Compile kernel"
 
 cd linux-4.4.1
-make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- vexpress_defconfig
+make ARCH=arm CROSS_COMPILE=arm-arm1176jzfssf-linux-gnueabi- vexpress_defconfig
 
 echo "CONFIG_FHANDLE=y" >> .config
 echo "CONFIG_LBDAF=y" >> .config
@@ -21,4 +21,4 @@ echo "CONFIG_XFS_FS=n" >> .config
 echo "CONFIG_GFS2_FS=n" >> .config
 
 
-make -j8 ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- all
+make -j8 ARCH=arm CROSS_COMPILE=arm-arm1176jzfssf-linux-gnueabi- all

@@ -13,8 +13,8 @@
  */
 	.align	5
 ENTRY(v7_early_abort)
-	mrc	p15, 0, r1, c5, c0, 0		@ get FSR
-	mrc	p15, 0, r0, c6, c0, 0		@ get FAR
+	mrc	p15, 0, r1, c5, c0, 0		@ get FSR  Fault Status Register
+	mrc	p15, 0, r0, c6, c0, 0		@ get FAR  Fault Address Register
 	uaccess_disable ip			@ disable userspace access
 
 	/*

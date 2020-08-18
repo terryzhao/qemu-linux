@@ -1124,6 +1124,16 @@ static inline void finish_lock_switch(struct rq *rq, struct task_struct *prev)
  * it's +10% CPU usage. (to achieve that we use a multiplier of 1.25.
  * If a task goes up by ~10% and another task goes down by ~10% then
  * the relative distance between them is ~25%.)
+ * nice从-20~19，共40个等级，nice值越高优先级越低。
+ * 进程每提高一个优先级，则增加10%CPU时间，同时另一个进程减少10%时间，他们之间的关系从原来的1:1变成了1.1:0.9=1.22。
+ * 因此相同优先级之间的关系使用系统1.25来表示。
+ * 假设A和B进程nice都为0，权重都是1024.
+ * A的nice变为1，B不变。那么B获得55%运行时间，A获得45%运行时间。A的权重就变成了A/(A+1024)=9/(9+11)，A=1024*9/11=838。
+ * 但是Linux并不是严格按照1.22系数来计算的，而是近似1.25。
+ * A的权重值就变成了1024/1.25≈820。
+ * prio_to_weight[]以nice-0为基准权重1024，然后将nice从-20~19预先计算出。set_load_weight()就可以通过优先级得到进程对应的权重。
+ * prio_to_wmult[]为了方便计算vruntime而预先计算结果。
+ * inv_weight=2^32/weight
  */
 static const int prio_to_weight[40] = {
  /* -20 */     88761,     71755,     56483,     46273,     36291,

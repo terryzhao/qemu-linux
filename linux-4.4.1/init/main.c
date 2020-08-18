@@ -9,7 +9,7 @@
  *  Simplified starting of init:  Michael A. Griffith <grif@acm.org>
  */
 
-#define DEBUG		/* Enable initcall_debug */
+#define DEBUG        /* Enable initcall_debug */
 
 #include <linux/types.h>
 #include <linux/module.h>
@@ -91,10 +91,15 @@
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
+
 extern void fork_init(void);
+
 extern void radix_tree_init(void);
+
 #ifndef CONFIG_DEBUG_RODATA
-static inline void mark_rodata_ro(void) { }
+
+static inline void mark_rodata_ro(void) {}
+
 #endif
 
 /*
@@ -104,9 +109,11 @@ static inline void mark_rodata_ro(void) { }
  * operations which are not allowed with IRQ disabled are allowed while the
  * flag is set.
  */
-bool early_boot_irqs_disabled __read_mostly;
+bool early_boot_irqs_disabled
+__read_mostly;
 
-enum system_states system_state __read_mostly;
+enum system_states system_state
+__read_mostly;
 EXPORT_SYMBOL(system_state);
 
 /*
@@ -116,11 +123,14 @@ EXPORT_SYMBOL(system_state);
 #define MAX_INIT_ENVS CONFIG_INIT_ENV_ARG_LIMIT
 
 extern void time_init(void);
+
 /* Default late time init is NULL. archs can override this later. */
-void (*__initdata late_time_init)(void);
+void (*__initdata
+late_time_init)(void);
 
 /* Untouched command line saved by arch-specific code. */
-char __initdata boot_command_line[COMMAND_LINE_SIZE];
+char __initdata
+boot_command_line[COMMAND_LINE_SIZE];
 /* Untouched saved command line (eg. for /proc) */
 char *saved_command_line;
 /* Command line for parameter parsing */
@@ -135,7 +145,8 @@ static char *ramdisk_execute_command;
  * Used to generate warnings if static_key manipulation functions are used
  * before jump_label_init is called.
  */
-bool static_key_initialized __read_mostly;
+bool static_key_initialized
+__read_mostly;
 EXPORT_SYMBOL_GPL(static_key_initialized);
 
 /*
@@ -150,209 +161,224 @@ EXPORT_SYMBOL_GPL(static_key_initialized);
 unsigned int reset_devices;
 EXPORT_SYMBOL(reset_devices);
 
-static int __init set_reset_devices(char *str)
-{
-	reset_devices = 1;
-	return 1;
+static int __init
+
+set_reset_devices(char *str) {
+    reset_devices = 1;
+    return 1;
 }
 
 __setup("reset_devices", set_reset_devices);
 
-static const char *argv_init[MAX_INIT_ARGS+2] = { "init", NULL, };
-const char *envp_init[MAX_INIT_ENVS+2] = { "HOME=/", "TERM=linux", NULL, };
+static const char *argv_init[MAX_INIT_ARGS + 2] = {"init", NULL,};
+const char *envp_init[MAX_INIT_ENVS + 2] = {"HOME=/", "TERM=linux", NULL,};
 static const char *panic_later, *panic_param;
 
 extern const struct obs_kernel_param __setup_start[], __setup_end[];
 
-static int __init obsolete_checksetup(char *line)
-{
-	const struct obs_kernel_param *p;
-	int had_early_param = 0;
+static int __init
 
-	p = __setup_start;
-	do {
-		int n = strlen(p->str);
-		if (parameqn(line, p->str, n)) {
-			if (p->early) {
-				/* Already done in parse_early_param?
-				 * (Needs exact match on param part).
-				 * Keep iterating, as we can have early
-				 * params and __setups of same names 8( */
-				if (line[n] == '\0' || line[n] == '=')
-					had_early_param = 1;
-			} else if (!p->setup_func) {
-				pr_warn("Parameter %s is obsolete, ignored\n",
-					p->str);
-				return 1;
-			} else if (p->setup_func(line + n))
-				return 1;
-		}
-		p++;
-	} while (p < __setup_end);
+obsolete_checksetup(char *line) {
+    const struct obs_kernel_param *p;
+    int had_early_param = 0;
 
-	return had_early_param;
+    p = __setup_start;
+    do {
+        int n = strlen(p->str);
+        if (parameqn(line, p->str, n)) {
+            if (p->early) {
+                /* Already done in parse_early_param?
+                 * (Needs exact match on param part).
+                 * Keep iterating, as we can have early
+                 * params and __setups of same names 8( */
+                if (line[n] == '\0' || line[n] == '=')
+                    had_early_param = 1;
+            } else if (!p->setup_func) {
+                pr_warn("Parameter %s is obsolete, ignored\n",
+                        p->str);
+                return 1;
+            } else if (p->setup_func(line + n))
+                return 1;
+        }
+        p++;
+    } while (p < __setup_end);
+
+    return had_early_param;
 }
 
 /*
  * This should be approx 2 Bo*oMips to start (note initial shift), and will
  * still work even if initially too large, it will just take slightly longer
  */
-unsigned long loops_per_jiffy = (1<<12);
+unsigned long loops_per_jiffy = (1 << 12);
 EXPORT_SYMBOL(loops_per_jiffy);
 
-static int __init debug_kernel(char *str)
-{
-	console_loglevel = CONSOLE_LOGLEVEL_DEBUG;
-	return 0;
+static int __init
+
+debug_kernel(char *str) {
+    console_loglevel = CONSOLE_LOGLEVEL_DEBUG;
+    return 0;
 }
 
-static int __init quiet_kernel(char *str)
-{
-	console_loglevel = CONSOLE_LOGLEVEL_QUIET;
-	return 0;
+static int __init
+
+quiet_kernel(char *str) {
+    console_loglevel = CONSOLE_LOGLEVEL_QUIET;
+    return 0;
 }
 
 early_param("debug", debug_kernel);
 early_param("quiet", quiet_kernel);
 
-static int __init loglevel(char *str)
-{
-	int newlevel;
+static int __init
 
-	/*
-	 * Only update loglevel value when a correct setting was passed,
-	 * to prevent blind crashes (when loglevel being set to 0) that
-	 * are quite hard to debug
-	 */
-	if (get_option(&str, &newlevel)) {
-		console_loglevel = newlevel;
-		return 0;
-	}
+loglevel(char *str) {
+    int newlevel;
 
-	return -EINVAL;
+    /*
+     * Only update loglevel value when a correct setting was passed,
+     * to prevent blind crashes (when loglevel being set to 0) that
+     * are quite hard to debug
+     */
+    if (get_option(&str, &newlevel)) {
+        console_loglevel = newlevel;
+        return 0;
+    }
+
+    return -EINVAL;
 }
 
 early_param("loglevel", loglevel);
 
 /* Change NUL term back to "=", to make "param" the whole string. */
-static int __init repair_env_string(char *param, char *val,
-				    const char *unused, void *arg)
-{
-	if (val) {
-		/* param=val or param="val"? */
-		if (val == param+strlen(param)+1)
-			val[-1] = '=';
-		else if (val == param+strlen(param)+2) {
-			val[-2] = '=';
-			memmove(val-1, val, strlen(val)+1);
-			val--;
-		} else
-			BUG();
-	}
-	return 0;
+static int __init
+
+repair_env_string(char *param, char *val,
+                  const char *unused, void *arg) {
+    if (val) {
+        /* param=val or param="val"? */
+        if (val == param + strlen(param) + 1)
+            val[-1] = '=';
+        else if (val == param + strlen(param) + 2) {
+            val[-2] = '=';
+            memmove(val - 1, val, strlen(val) + 1);
+            val--;
+        } else
+            BUG();
+    }
+    return 0;
 }
 
 /* Anything after -- gets handed straight to init. */
-static int __init set_init_arg(char *param, char *val,
-			       const char *unused, void *arg)
-{
-	unsigned int i;
+static int __init
 
-	if (panic_later)
-		return 0;
+set_init_arg(char *param, char *val,
+             const char *unused, void *arg) {
+    unsigned int i;
 
-	repair_env_string(param, val, unused, NULL);
+    if (panic_later)
+        return 0;
 
-	for (i = 0; argv_init[i]; i++) {
-		if (i == MAX_INIT_ARGS) {
-			panic_later = "init";
-			panic_param = param;
-			return 0;
-		}
-	}
-	argv_init[i] = param;
-	return 0;
+    repair_env_string(param, val, unused, NULL);
+
+    for (i = 0; argv_init[i]; i++) {
+        if (i == MAX_INIT_ARGS) {
+            panic_later = "init";
+            panic_param = param;
+            return 0;
+        }
+    }
+    argv_init[i] = param;
+    return 0;
 }
 
 /*
  * Unknown boot options get handed to init, unless they look like
  * unused parameters (modprobe will find them in /proc/cmdline).
  */
-static int __init unknown_bootoption(char *param, char *val,
-				     const char *unused, void *arg)
-{
-	repair_env_string(param, val, unused, NULL);
+static int __init
 
-	/* Handle obsolete-style parameters */
-	if (obsolete_checksetup(param))
-		return 0;
+unknown_bootoption(char *param, char *val,
+                   const char *unused, void *arg) {
+    repair_env_string(param, val, unused, NULL);
 
-	/* Unused module parameter. */
-	if (strchr(param, '.') && (!val || strchr(param, '.') < val))
-		return 0;
+    /* Handle obsolete-style parameters */
+    if (obsolete_checksetup(param))
+        return 0;
 
-	if (panic_later)
-		return 0;
+    /* Unused module parameter. */
+    if (strchr(param, '.') && (!val || strchr(param, '.') < val))
+        return 0;
 
-	if (val) {
-		/* Environment option */
-		unsigned int i;
-		for (i = 0; envp_init[i]; i++) {
-			if (i == MAX_INIT_ENVS) {
-				panic_later = "env";
-				panic_param = param;
-			}
-			if (!strncmp(param, envp_init[i], val - param))
-				break;
-		}
-		envp_init[i] = param;
-	} else {
-		/* Command line option */
-		unsigned int i;
-		for (i = 0; argv_init[i]; i++) {
-			if (i == MAX_INIT_ARGS) {
-				panic_later = "init";
-				panic_param = param;
-			}
-		}
-		argv_init[i] = param;
-	}
-	return 0;
+    if (panic_later)
+        return 0;
+
+    if (val) {
+        /* Environment option */
+        unsigned int i;
+        for (i = 0; envp_init[i]; i++) {
+            if (i == MAX_INIT_ENVS) {
+                panic_later = "env";
+                panic_param = param;
+            }
+            if (!strncmp(param, envp_init[i], val - param))
+                break;
+        }
+        envp_init[i] = param;
+    } else {
+        /* Command line option */
+        unsigned int i;
+        for (i = 0; argv_init[i]; i++) {
+            if (i == MAX_INIT_ARGS) {
+                panic_later = "init";
+                panic_param = param;
+            }
+        }
+        argv_init[i] = param;
+    }
+    return 0;
 }
 
-static int __init init_setup(char *str)
-{
-	unsigned int i;
+static int __init
 
-	execute_command = str;
-	/*
-	 * In case LILO is going to boot us with default command line,
-	 * it prepends "auto" before the whole cmdline which makes
-	 * the shell think it should execute a script with such name.
-	 * So we ignore all arguments entered _before_ init=... [MJ]
-	 */
-	for (i = 1; i < MAX_INIT_ARGS; i++)
-		argv_init[i] = NULL;
-	return 1;
+init_setup(char *str) {
+    unsigned int i;
+
+    execute_command = str;
+    /*
+     * In case LILO is going to boot us with default command line,
+     * it prepends "auto" before the whole cmdline which makes
+     * the shell think it should execute a script with such name.
+     * So we ignore all arguments entered _before_ init=... [MJ]
+     */
+    for (i = 1; i < MAX_INIT_ARGS; i++)
+        argv_init[i] = NULL;
+    return 1;
 }
+
 __setup("init=", init_setup);
 
-static int __init rdinit_setup(char *str)
-{
-	unsigned int i;
+static int __init
 
-	ramdisk_execute_command = str;
-	/* See "auto" comment in init_setup */
-	for (i = 1; i < MAX_INIT_ARGS; i++)
-		argv_init[i] = NULL;
-	return 1;
+rdinit_setup(char *str) {
+    unsigned int i;
+
+    ramdisk_execute_command = str;
+    /* See "auto" comment in init_setup */
+    for (i = 1; i < MAX_INIT_ARGS; i++)
+        argv_init[i] = NULL;
+    return 1;
 }
+
 __setup("rdinit=", rdinit_setup);
 
 #ifndef CONFIG_SMP
 static const unsigned int setup_max_cpus = NR_CPUS;
-static inline void setup_nr_cpu_ids(void) { }
-static inline void smp_prepare_cpus(unsigned int maxcpus) { }
+
+static inline void setup_nr_cpu_ids(void) {}
+
+static inline void smp_prepare_cpus(unsigned int maxcpus) {}
+
 #endif
 
 /*
@@ -361,15 +387,16 @@ static inline void smp_prepare_cpus(unsigned int maxcpus) { }
  * parsing is performed in place, and we should allow a component to
  * store reference of name/value for future reference.
  */
-static void __init setup_command_line(char *command_line)
-{
-	saved_command_line =
-		memblock_virt_alloc(strlen(boot_command_line) + 1, 0);
-	initcall_command_line =
-		memblock_virt_alloc(strlen(boot_command_line) + 1, 0);
-	static_command_line = memblock_virt_alloc(strlen(command_line) + 1, 0);
-	strcpy(saved_command_line, boot_command_line);
-	strcpy(static_command_line, command_line);
+static void __init
+
+setup_command_line(char *command_line) {
+    saved_command_line =
+            memblock_virt_alloc(strlen(boot_command_line) + 1, 0);
+    initcall_command_line =
+            memblock_virt_alloc(strlen(boot_command_line) + 1, 0);
+    static_command_line = memblock_virt_alloc(strlen(command_line) + 1, 0);
+    strcpy(saved_command_line, boot_command_line);
+    strcpy(static_command_line, command_line);
 }
 
 /*
@@ -383,450 +410,508 @@ static void __init setup_command_line(char *command_line)
 
 static __initdata DECLARE_COMPLETION(kthreadd_done);
 
-static noinline void __init_refok rest_init(void)
-{
-	int pid;
+static noinline void __init_refok
 
-	rcu_scheduler_starting();
-	smpboot_thread_init();
-	/*
-	 * We need to spawn init first so that it obtains pid 1, however
-	 * the init task will end up wanting to create kthreads, which, if
-	 * we schedule it before we create kthreadd, will OOPS.
-	 */
-	kernel_thread(kernel_init, NULL, CLONE_FS);
-	numa_default_policy();
-	pid = kernel_thread(kthreadd, NULL, CLONE_FS | CLONE_FILES);
-	rcu_read_lock();
-	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
-	rcu_read_unlock();
-	complete(&kthreadd_done);
+rest_init(void) {
+    int pid;
 
-	/*
-	 * The boot idle thread must execute schedule()
-	 * at least once to get things moving:
-	 */
-	init_idle_bootup_task(current);
-	schedule_preempt_disabled();
-	/* Call into cpu_idle with preempt disabled */
-	cpu_startup_entry(CPUHP_ONLINE);
+    rcu_scheduler_starting();
+    smpboot_thread_init();
+    /*
+     * We need to spawn init first so that it obtains pid 1, however
+     * the init task will end up wanting to create kthreads, which, if
+     * we schedule it before we create kthreadd, will OOPS.
+     */
+    kernel_thread(kernel_init, NULL, CLONE_FS);
+    numa_default_policy();
+    pid = kernel_thread(kthreadd, NULL, CLONE_FS | CLONE_FILES);
+    rcu_read_lock();
+    kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
+    rcu_read_unlock();
+    complete(&kthreadd_done);
+
+    /*
+     * The boot idle thread must execute schedule()
+     * at least once to get things moving:
+     */
+    init_idle_bootup_task(current);
+    schedule_preempt_disabled();
+    /* Call into cpu_idle with preempt disabled */
+    cpu_startup_entry(CPUHP_ONLINE);
 }
 
 /* Check for early params. */
-static int __init do_early_param(char *param, char *val,
-				 const char *unused, void *arg)
-{
-	const struct obs_kernel_param *p;
+static int __init
 
-	for (p = __setup_start; p < __setup_end; p++) {
-		if ((p->early && parameq(param, p->str)) ||
-		    (strcmp(param, "console") == 0 &&
-		     strcmp(p->str, "earlycon") == 0)
-		) {
-			if (p->setup_func(val) != 0)
-				pr_warn("Malformed early option '%s'\n", param);
-		}
-	}
-	/* We accept everything at this stage. */
-	return 0;
+do_early_param(char *param, char *val,
+               const char *unused, void *arg) {
+    const struct obs_kernel_param *p;
+
+    for (p = __setup_start; p < __setup_end; p++) {
+        if ((p->early && parameq(param, p->str)) ||
+            (strcmp(param, "console") == 0 &&
+             strcmp(p->str, "earlycon") == 0)
+                ) {
+            if (p->setup_func(val) != 0)
+                pr_warn("Malformed early option '%s'\n", param);
+        }
+    }
+    /* We accept everything at this stage. */
+    return 0;
 }
 
-void __init parse_early_options(char *cmdline)
-{
-	parse_args("early options", cmdline, NULL, 0, 0, 0, NULL,
-		   do_early_param);
+void __init
+
+parse_early_options(char *cmdline) {
+    parse_args("early options", cmdline, NULL, 0, 0, 0, NULL,
+               do_early_param);
 }
 
 /* Arch code calls this early on, or if not, just before other parsing. */
-void __init parse_early_param(void)
-{
-	static int done __initdata;
-	static char tmp_cmdline[COMMAND_LINE_SIZE] __initdata;
+void __init
 
-	if (done)
-		return;
+parse_early_param(void) {
+    static int done
+    __initdata;
+    static char tmp_cmdline[COMMAND_LINE_SIZE]
+    __initdata;
 
-	/* All fall through to do_early_param. */
-	strlcpy(tmp_cmdline, boot_command_line, COMMAND_LINE_SIZE);
-	parse_early_options(tmp_cmdline);
-	done = 1;
+    if (done)
+        return;
+
+    /* All fall through to do_early_param. */
+    strlcpy(tmp_cmdline, boot_command_line, COMMAND_LINE_SIZE);
+    parse_early_options(tmp_cmdline);
+    done = 1;
 }
 
 /*
  *	Activate the first processor.
  */
 
-static void __init boot_cpu_init(void)
-{
-	int cpu = smp_processor_id();
-	/* Mark the boot cpu "present", "online" etc for SMP and UP case */
-	set_cpu_online(cpu, true);
-	set_cpu_active(cpu, true);
-	set_cpu_present(cpu, true);
-	set_cpu_possible(cpu, true);
+static void __init
+
+boot_cpu_init(void) {
+    int cpu = smp_processor_id();
+    /* Mark the boot cpu "present", "online" etc for SMP and UP case */
+    set_cpu_online(cpu, true);
+    set_cpu_active(cpu, true);
+    set_cpu_present(cpu, true);
+    set_cpu_possible(cpu, true);
 }
 
-void __init __weak smp_setup_processor_id(void)
-{
+void __init
+
+__weak smp_setup_processor_id(void) {
 }
 
 # if THREAD_SIZE >= PAGE_SIZE
-void __init __weak thread_info_cache_init(void)
-{
+void __init
+
+__weak thread_info_cache_init(void) {
 }
+
 #endif
 
 /*
  * Set up kernel memory allocators
  */
-static void __init mm_init(void)
-{
-	/*
-	 * page_ext requires contiguous pages,
-	 * bigger than MAX_ORDER unless SPARSEMEM.
-	 */
-	page_ext_init_flatmem();
-	mem_init();
-	kmem_cache_init();
-	percpu_init_late();
-	pgtable_init();
-	vmalloc_init();
-	ioremap_huge_init();
+static void __init
+
+mm_init(void) {
+    /*
+     * page_ext requires contiguous pages,
+     * bigger than MAX_ORDER unless SPARSEMEM.
+     */
+    page_ext_init_flatmem();
+    mem_init();
+    kmem_cache_init();
+    percpu_init_late();
+    pgtable_init();
+    vmalloc_init();
+    ioremap_huge_init();
 }
 
-asmlinkage __visible void __init start_kernel(void)
-{
-	char *command_line;
-	char *after_dashes;
+asmlinkage __visible
+void __init
 
-	/*
-	 * Need to run as early as possible, to initialize the
-	 * lockdep hash:
-	 */
-	lockdep_init();
-	set_task_stack_end_magic(&init_task);
-	smp_setup_processor_id();
-	debug_objects_early_init();
+start_kernel(void) {
+    char *command_line;
+    char *after_dashes;
 
-	/*
-	 * Set up the the initial canary ASAP:
-	 */
-	boot_init_stack_canary();
 
-	cgroup_init_early();
+//    unsigned int i, addr, value;
+//    for (i = 0; i < 0x1000; i++) {
+//        addr = 0x80004000 + i * 4;
+//        value = *((unsigned int *) addr);
+//        if (value) {
+//            pr_notice("0x%04x: hw: 0x%08x, virt: 0x%08x, value: 0x%08x map: [0x%08x ~ 0x%08x ==> 0x%08x ~ 0x%08x]\n",
+//                      i, __pa(addr), addr, *((int *) addr), i * (1 << 20), i * (1 << 20) + (1 << 20) - 1,
+//                      ((value >> 20) << 20), ((value >> 20) << 20) + (1 << 20) - 1);
+//        }
+//    }
+//
 
-	local_irq_disable();
-	early_boot_irqs_disabled = true;
+    /*
+     * Need to run as early as possible, to initialize the
+     * lockdep hash:
+     */
+    lockdep_init();
+    set_task_stack_end_magic(&init_task);
+    smp_setup_processor_id();
+    debug_objects_early_init();
+
+    /*
+     * Set up the the initial canary ASAP:
+     */
+    boot_init_stack_canary();
+
+    cgroup_init_early();
+
+    local_irq_disable();
+    early_boot_irqs_disabled = true;
 
 /*
  * Interrupts are still disabled. Do necessary setups, then
  * enable them
  */
-	boot_cpu_init();
-	page_address_init();
-	pr_notice("%s", linux_banner);
+    boot_cpu_init();
+    page_address_init();
+    pr_notice("%s", linux_banner);
     //设置特定架构的信息,同时初始化memblock
-	setup_arch(&command_line);
+    setup_arch(&command_line);
     //初始化CPU屏蔽字
-	mm_init_cpumask(&init_mm);
-	setup_command_line(command_line);
-	setup_nr_cpu_ids();
+    mm_init_cpumask(&init_mm);
+    setup_command_line(command_line);
+    setup_nr_cpu_ids();
     /*
      *函数(查看定义)给每个CPU分配内存，并拷贝.data.percpu段的数据. 为系统中的每个CPU的per_cpu变量申请空间.
-     *在SMP系统中, setup_per_cpu_areas初始化源代码中(使用per_cpu宏)定义的静态per-cpu变量, 这种变量对系统中每个CPU都有一个独立的副本. 
+     *在SMP系统中, setup_per_cpu_areas初始化源代码中(使用per_cpu宏)定义的静态per-cpu变量, 这种变量对系统中每个CPU都有一个独立的副本.
      *此类变量保存在内核二进制影像的一个独立的段中, setup_per_cpu_areas的目的就是为系统中各个CPU分别创建一份这些数据的副本
      *在非SMP系统中这是一个空操作
-     * 
+     *
     */
-	setup_per_cpu_areas();
-	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
+    setup_per_cpu_areas();
+    smp_prepare_boot_cpu();    /* arch-specific boot-cpu hooks */
 
     //初始化内存结点和内段区域
     //建立并初始化结点和内存域的数据结构
-	build_all_zonelists(NULL, NULL);
-	page_alloc_init();
+    build_all_zonelists(NULL, NULL);
+    page_alloc_init();
 
-	pr_notice("Kernel command line: %s\n", boot_command_line);
-	parse_early_param();
-	after_dashes = parse_args("Booting kernel",
-				  static_command_line, __start___param,
-				  __stop___param - __start___param,
-				  -1, -1, NULL, &unknown_bootoption);
-	if (!IS_ERR_OR_NULL(after_dashes))
-		parse_args("Setting init args", after_dashes, NULL, 0, -1, -1,
-			   NULL, set_init_arg);
+    pr_notice("Kernel command line: %s\n", boot_command_line);
+    parse_early_param();
+    after_dashes = parse_args("Booting kernel",
+                              static_command_line, __start___param,
+                              __stop___param - __start___param,
+                              -1, -1, NULL, &unknown_bootoption);
+    if (!IS_ERR_OR_NULL(after_dashes))
+        parse_args("Setting init args", after_dashes, NULL, 0, -1, -1,
+                   NULL, set_init_arg);
 
-	jump_label_init();
+    jump_label_init();
 
-	/*
-	 * These use large bootmem allocations and must precede
-	 * kmem_cache_init()
-	 */
-	setup_log_buf(0);
-	pidhash_init();
-	vfs_caches_init_early();
-	sort_main_extable();
-	trap_init();
+    /*
+     * These use large bootmem allocations and must precede
+     * kmem_cache_init()
+     */
+    setup_log_buf(0);
+    pidhash_init();
+    vfs_caches_init_early();
+    sort_main_extable();
+    trap_init();
     //建立了内核的内存分配器, 其中通过mem_init停用bootmem分配器并迁移到实际的内存管理器(比如伙伴系统)
     //然后调用kmem_cache_init函数初始化内核内部用于小块内存区的分配器
-	mm_init();
+    mm_init();
 
-	/*
-	 * Set up the scheduler prior starting any interrupts (such as the
-	 * timer interrupt). Full topology setup happens at smp_init()
-	 * time - but meanwhile we still have a functioning scheduler.
-	 */
-	sched_init();
-	/*
-	 * Disable preemption - early bootup scheduling is extremely
-	 * fragile until we cpu_idle() for the first time.
-	 */
-	preempt_disable();
-	if (WARN(!irqs_disabled(),
-		 "Interrupts were enabled *very* early, fixing it\n"))
-		local_irq_disable();
-	idr_init_cache();
-	rcu_init();
+    /*
+     * Set up the scheduler prior starting any interrupts (such as the
+     * timer interrupt). Full topology setup happens at smp_init()
+     * time - but meanwhile we still have a functioning scheduler.
+     */
+    sched_init();
+    /*
+     * Disable preemption - early bootup scheduling is extremely
+     * fragile until we cpu_idle() for the first time.
+     */
+    preempt_disable();
+    if (WARN(!irqs_disabled(),
+             "Interrupts were enabled *very* early, fixing it\n"))
+        local_irq_disable();
+    idr_init_cache();
+    rcu_init();
 
-	/* trace_printk() and trace points may be used after this */
-	trace_init();
+    /* trace_printk() and trace points may be used after this */
+    trace_init();
 
-	context_tracking_init();
-	radix_tree_init();
-	/* init some links before init_ISA_irqs() */
-	early_irq_init();
-	init_IRQ();
-	tick_init();
-	rcu_init_nohz();
-	init_timers();
-	hrtimers_init();
-	softirq_init();
-	timekeeping_init();
-	time_init();
-	sched_clock_postinit();
-	perf_event_init();
-	profile_init();
-	call_function_init();
-	WARN(!irqs_disabled(), "Interrupts were enabled early\n");
-	early_boot_irqs_disabled = false;
-	local_irq_enable();
+    context_tracking_init();
+    radix_tree_init();
+    /* init some links before init_ISA_irqs() */
+    early_irq_init();
+    init_IRQ();
+    tick_init();
+    rcu_init_nohz();
+    init_timers();
+    hrtimers_init();
+    softirq_init();
+    timekeeping_init();
+    time_init();
+    sched_clock_postinit();
+    perf_event_init();
+    profile_init();
+    call_function_init();
+    WARN(!irqs_disabled(), "Interrupts were enabled early\n");
+    early_boot_irqs_disabled = false;
+    local_irq_enable();
 
     //在kmem_cache_init之后, 完善分配器的缓存机制,　当前3个可用的内核内存分配器slab, slob, slub都会定义此函数
-	kmem_cache_init_late();
+    kmem_cache_init_late();
 
-	/*
-	 * HACK ALERT! This is early. We're enabling the console before
-	 * we've done PCI setups etc, and console_init() must be aware of
-	 * this. But we do want output early, in case something goes wrong.
-	 */
-	console_init();
-	if (panic_later)
-		panic("Too many boot %s vars at `%s'", panic_later,
-		      panic_param);
+    /*
+     * HACK ALERT! This is early. We're enabling the console before
+     * we've done PCI setups etc, and console_init() must be aware of
+     * this. But we do want output early, in case something goes wrong.
+     */
+    console_init();
+    if (panic_later)
+        panic("Too many boot %s vars at `%s'", panic_later,
+              panic_param);
 
-	lockdep_info();
+    lockdep_info();
 
-	/*
-	 * Need to run this when irqs are enabled, because it wants
-	 * to self-test [hard/soft]-irqs on/off lock inversion bugs
-	 * too:
-	 */
-	locking_selftest();
+    /*
+     * Need to run this when irqs are enabled, because it wants
+     * to self-test [hard/soft]-irqs on/off lock inversion bugs
+     * too:
+     */
+    locking_selftest();
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	if (initrd_start && !initrd_below_start_ok &&
-	    page_to_pfn(virt_to_page((void *)initrd_start)) < min_low_pfn) {
-		pr_crit("initrd overwritten (0x%08lx < 0x%08lx) - disabling it.\n",
-		    page_to_pfn(virt_to_page((void *)initrd_start)),
-		    min_low_pfn);
-		initrd_start = 0;
-	}
+    if (initrd_start && !initrd_below_start_ok &&
+        page_to_pfn(virt_to_page((void *)initrd_start)) < min_low_pfn) {
+        pr_crit("initrd overwritten (0x%08lx < 0x%08lx) - disabling it.\n",
+            page_to_pfn(virt_to_page((void *)initrd_start)),
+            min_low_pfn);
+        initrd_start = 0;
+    }
 #endif
-	page_ext_init();
-	debug_objects_mem_init();
+    page_ext_init();
+    debug_objects_mem_init();
     //Kmemleak工作于内核态，Kmemleak 提供了一种可选的内核泄漏检测，其方法类似于跟踪内存收集器。
     //当独立的对象没有被释放时，其报告记录在 /sys/kernel/debug/kmemleak中, Kmemcheck能够帮助定位大多数内存错误的上下文
-	kmemleak_init();
+    kmemleak_init();
     //初始化CPU高速缓存行, 为pagesets的第一个数组元素分配内存,
     //换句话说, 其实就是第一个系统处理器分配由于在分页情况下，
     //每次存储器访问都要存取多级页表，这就大大降低了访问速度。
     //所以，为了提高速度，在CPU中设置一个最近存取页面的高速缓存硬件机制，
     //当进行存储器访问时，先检查要访问的页面是否在高速缓存中.
-	setup_per_cpu_pageset();
-	numa_policy_init();
-	if (late_time_init)
-		late_time_init();
-	sched_clock_init();
-	calibrate_delay();
-	pidmap_init();
-	anon_vma_init();
-	acpi_early_init();
+    setup_per_cpu_pageset();
+    numa_policy_init();
+    if (late_time_init)
+        late_time_init();
+    sched_clock_init();
+    calibrate_delay();
+    pidmap_init();
+    anon_vma_init();
+    acpi_early_init();
 #ifdef CONFIG_X86
-	if (efi_enabled(EFI_RUNTIME_SERVICES))
-		efi_enter_virtual_mode();
+    if (efi_enabled(EFI_RUNTIME_SERVICES))
+        efi_enter_virtual_mode();
 #endif
 #ifdef CONFIG_X86_ESPFIX64
-	/* Should be run before the first non-init thread is created */
-	init_espfix_bsp();
+    /* Should be run before the first non-init thread is created */
+    init_espfix_bsp();
 #endif
-	thread_info_cache_init();
-	cred_init();
-	fork_init();
-	proc_caches_init();
-	buffer_init();
-	key_init();
-	security_init();
-	dbg_late_init();
-	vfs_caches_init();
-	signals_init();
-	/* rootfs populating might need page-writeback */
-	page_writeback_init();
-	proc_root_init();
-	nsfs_init();
-	cpuset_init();
-	cgroup_init();
-	taskstats_init_early();
-	delayacct_init();
+    thread_info_cache_init();
+    cred_init();
+    fork_init();
+    proc_caches_init();
+    buffer_init();
+    key_init();
+    security_init();
+    dbg_late_init();
+    vfs_caches_init();
+    signals_init();
+    /* rootfs populating might need page-writeback */
+    page_writeback_init();
+    proc_root_init();
+    nsfs_init();
+    cpuset_init();
+    cgroup_init();
+    taskstats_init_early();
+    delayacct_init();
 
-	check_bugs();
+    check_bugs();
 
-	acpi_subsystem_init();
-	sfi_init_late();
+    acpi_subsystem_init();
+    sfi_init_late();
 
-	if (efi_enabled(EFI_RUNTIME_SERVICES)) {
-		efi_late_init();
-		efi_free_boot_services();
-	}
+    if (efi_enabled(EFI_RUNTIME_SERVICES)) {
+        efi_late_init();
+        efi_free_boot_services();
+    }
 
-	ftrace_init();
+    ftrace_init();
 
-	/* Do the rest non-__init'ed, we're now alive */
-	rest_init();
+    /* Do the rest non-__init'ed, we're now alive */
+    rest_init();
 }
 
 /* Call all constructor functions linked into the kernel. */
-static void __init do_ctors(void)
-{
-#ifdef CONFIG_CONSTRUCTORS
-	ctor_fn_t *fn = (ctor_fn_t *) __ctors_start;
+static void __init
 
-	for (; fn < (ctor_fn_t *) __ctors_end; fn++)
-		(*fn)();
+do_ctors(void) {
+#ifdef CONFIG_CONSTRUCTORS
+    ctor_fn_t *fn = (ctor_fn_t *) __ctors_start;
+
+    for (; fn < (ctor_fn_t *) __ctors_end; fn++)
+        (*fn)();
 #endif
 }
 
 bool initcall_debug;
-core_param(initcall_debug, initcall_debug, bool, 0644);
+core_param(initcall_debug, initcall_debug, bool,
+0644);
 
 #ifdef CONFIG_KALLSYMS
 struct blacklist_entry {
-	struct list_head next;
-	char *buf;
+    struct list_head next;
+    char *buf;
 };
 
 static __initdata_or_module LIST_HEAD(blacklisted_initcalls);
 
 static int __init initcall_blacklist(char *str)
 {
-	char *str_entry;
-	struct blacklist_entry *entry;
+    char *str_entry;
+    struct blacklist_entry *entry;
 
-	/* str argument is a comma-separated list of functions */
-	do {
-		str_entry = strsep(&str, ",");
-		if (str_entry) {
-			pr_debug("blacklisting initcall %s\n", str_entry);
-			entry = alloc_bootmem(sizeof(*entry));
-			entry->buf = alloc_bootmem(strlen(str_entry) + 1);
-			strcpy(entry->buf, str_entry);
-			list_add(&entry->next, &blacklisted_initcalls);
-		}
-	} while (str_entry);
+    /* str argument is a comma-separated list of functions */
+    do {
+        str_entry = strsep(&str, ",");
+        if (str_entry) {
+            pr_debug("blacklisting initcall %s\n", str_entry);
+            entry = alloc_bootmem(sizeof(*entry));
+            entry->buf = alloc_bootmem(strlen(str_entry) + 1);
+            strcpy(entry->buf, str_entry);
+            list_add(&entry->next, &blacklisted_initcalls);
+        }
+    } while (str_entry);
 
-	return 0;
+    return 0;
 }
 
 static bool __init_or_module initcall_blacklisted(initcall_t fn)
 {
-	struct list_head *tmp;
-	struct blacklist_entry *entry;
-	char *fn_name;
+    struct list_head *tmp;
+    struct blacklist_entry *entry;
+    char *fn_name;
 
-	fn_name = kasprintf(GFP_KERNEL, "%pf", fn);
-	if (!fn_name)
-		return false;
+    fn_name = kasprintf(GFP_KERNEL, "%pf", fn);
+    if (!fn_name)
+        return false;
 
-	list_for_each(tmp, &blacklisted_initcalls) {
-		entry = list_entry(tmp, struct blacklist_entry, next);
-		if (!strcmp(fn_name, entry->buf)) {
-			pr_debug("initcall %s blacklisted\n", fn_name);
-			kfree(fn_name);
-			return true;
-		}
-	}
+    list_for_each(tmp, &blacklisted_initcalls) {
+        entry = list_entry(tmp, struct blacklist_entry, next);
+        if (!strcmp(fn_name, entry->buf)) {
+            pr_debug("initcall %s blacklisted\n", fn_name);
+            kfree(fn_name);
+            return true;
+        }
+    }
 
-	kfree(fn_name);
-	return false;
+    kfree(fn_name);
+    return false;
 }
 #else
-static int __init initcall_blacklist(char *str)
-{
-	pr_warn("initcall_blacklist requires CONFIG_KALLSYMS\n");
-	return 0;
+static int __init
+
+initcall_blacklist(char *str) {
+    pr_warn("initcall_blacklist requires CONFIG_KALLSYMS\n");
+    return 0;
 }
 
-static bool __init_or_module initcall_blacklisted(initcall_t fn)
+static bool __init_or_module
+initcall_blacklisted(initcall_t
+fn)
 {
-	return false;
+return
+false;
 }
 #endif
 __setup("initcall_blacklist=", initcall_blacklist);
 
-static int __init_or_module do_one_initcall_debug(initcall_t fn)
+static int __init_or_module
+do_one_initcall_debug(initcall_t
+fn)
 {
-	ktime_t calltime, delta, rettime;
-	unsigned long long duration;
-	int ret;
+ktime_t calltime, delta, rettime;
+unsigned long long duration;
+int ret;
 
-	printk(KERN_DEBUG "calling  %pF @ %i\n", fn, task_pid_nr(current));
-	calltime = ktime_get();
-	ret = fn();
-	rettime = ktime_get();
-	delta = ktime_sub(rettime, calltime);
-	duration = (unsigned long long) ktime_to_ns(delta) >> 10;
-	printk(KERN_DEBUG "initcall %pF returned %d after %lld usecs\n",
-		 fn, ret, duration);
+printk(KERN_DEBUG
+"calling  %pF @ %i\n", fn,
+task_pid_nr(current)
+);
+calltime = ktime_get();
+ret = fn();
+rettime = ktime_get();
+delta = ktime_sub(rettime, calltime);
+duration = (unsigned long long) ktime_to_ns(delta) >> 10;
+printk(KERN_DEBUG
+"initcall %pF returned %d after %lld usecs\n",
+fn, ret, duration);
 
-	return ret;
+return
+ret;
 }
 
-int __init_or_module do_one_initcall(initcall_t fn)
+int __init_or_module
+do_one_initcall(initcall_t
+fn)
 {
-	int count = preempt_count();
-	int ret;
-	char msgbuf[64];
+int count = preempt_count();
+int ret;
+char msgbuf[64];
 
-	if (initcall_blacklisted(fn))
-		return -EPERM;
+if (
+initcall_blacklisted(fn)
+)
+return -
+EPERM;
 
-	if (initcall_debug)
-		ret = do_one_initcall_debug(fn);
-	else
-		ret = fn();
+if (initcall_debug)
+ret = do_one_initcall_debug(fn);
+else
+ret = fn();
 
-	msgbuf[0] = 0;
+msgbuf[0] = 0;
 
-	if (preempt_count() != count) {
-		sprintf(msgbuf, "preemption imbalance ");
-		preempt_count_set(count);
-	}
-	if (irqs_disabled()) {
-		strlcat(msgbuf, "disabled interrupts ", sizeof(msgbuf));
-		local_irq_enable();
-	}
-	WARN(msgbuf[0], "initcall %pF returned with %s\n", fn, msgbuf);
+if (
 
-	return ret;
+preempt_count()
+
+!= count) {
+sprintf(msgbuf,
+"preemption imbalance ");
+preempt_count_set(count);
+}
+if (
+
+irqs_disabled()
+
+) {
+strlcat(msgbuf,
+"disabled interrupts ", sizeof(msgbuf));
+
+local_irq_enable();
+
+}
+WARN(msgbuf[0],
+"initcall %pF returned with %s\n", fn, msgbuf);
+
+return
+ret;
 }
 
 
@@ -841,51 +926,55 @@ extern initcall_t __initcall6_start[];
 extern initcall_t __initcall7_start[];
 extern initcall_t __initcall_end[];
 
-static initcall_t *initcall_levels[] __initdata = {
-	__initcall0_start,
-	__initcall1_start,
-	__initcall2_start,
-	__initcall3_start,
-	__initcall4_start,
-	__initcall5_start,
-	__initcall6_start,
-	__initcall7_start,
-	__initcall_end,
+static initcall_t *initcall_levels[]
+__initdata = {
+        __initcall0_start,
+        __initcall1_start,
+        __initcall2_start,
+        __initcall3_start,
+        __initcall4_start,
+        __initcall5_start,
+        __initcall6_start,
+        __initcall7_start,
+        __initcall_end,
 };
 
 /* Keep these in sync with initcalls in include/linux/init.h */
-static char *initcall_level_names[] __initdata = {
-	"early",
-	"core",
-	"postcore",
-	"arch",
-	"subsys",
-	"fs",
-	"device",
-	"late",
+static char *initcall_level_names[]
+__initdata = {
+        "early",
+        "core",
+        "postcore",
+        "arch",
+        "subsys",
+        "fs",
+        "device",
+        "late",
 };
 
-static void __init do_initcall_level(int level)
-{
-	initcall_t *fn;
+static void __init
 
-	strcpy(initcall_command_line, saved_command_line);
-	parse_args(initcall_level_names[level],
-		   initcall_command_line, __start___param,
-		   __stop___param - __start___param,
-		   level, level,
-		   NULL, &repair_env_string);
+do_initcall_level(int level) {
+    initcall_t * fn;
 
-	for (fn = initcall_levels[level]; fn < initcall_levels[level+1]; fn++)
-		do_one_initcall(*fn);
+    strcpy(initcall_command_line, saved_command_line);
+    parse_args(initcall_level_names[level],
+               initcall_command_line, __start___param,
+               __stop___param - __start___param,
+               level, level,
+               NULL, &repair_env_string);
+
+    for (fn = initcall_levels[level]; fn < initcall_levels[level + 1]; fn++)
+        do_one_initcall(*fn);
 }
 
-static void __init do_initcalls(void)
-{
-	int level;
+static void __init
 
-	for (level = 0; level < ARRAY_SIZE(initcall_levels) - 1; level++)
-		do_initcall_level(level);
+do_initcalls(void) {
+    int level;
+
+    for (level = 0; level < ARRAY_SIZE(initcall_levels) - 1; level++)
+        do_initcall_level(level);
 }
 
 /*
@@ -895,24 +984,26 @@ static void __init do_initcalls(void)
  *
  * Now we can finally start doing some real work..
  */
-static void __init do_basic_setup(void)
-{
-	cpuset_init_smp();
-	shmem_init();
-	driver_init();
-	init_irq_proc();
-	do_ctors();
-	usermodehelper_enable();
-	do_initcalls();
-	random_int_secret_init();
+static void __init
+
+do_basic_setup(void) {
+    cpuset_init_smp();
+    shmem_init();
+    driver_init();
+    init_irq_proc();
+    do_ctors();
+    usermodehelper_enable();
+    do_initcalls();
+    random_int_secret_init();
 }
 
-static void __init do_pre_smp_initcalls(void)
-{
-	initcall_t *fn;
+static void __init
 
-	for (fn = __initcall_start; fn < __initcall0_start; fn++)
-		do_one_initcall(*fn);
+do_pre_smp_initcalls(void) {
+    initcall_t * fn;
+
+    for (fn = __initcall_start; fn < __initcall0_start; fn++)
+        do_one_initcall(*fn);
 }
 
 /*
@@ -921,141 +1012,151 @@ static void __init do_pre_smp_initcalls(void)
  * exec'd.  If such modules are on either initrd or rootfs, they will be
  * loaded before control is passed to userland.
  */
-void __init load_default_modules(void)
-{
-	load_default_elevator_module();
+void __init
+
+load_default_modules(void) {
+    load_default_elevator_module();
 }
 
-static int run_init_process(const char *init_filename)
-{
-	argv_init[0] = init_filename;
-	return do_execve(getname_kernel(init_filename),
-		(const char __user *const __user *)argv_init,
-		(const char __user *const __user *)envp_init);
+static int run_init_process(const char *init_filename) {
+    argv_init[0] = init_filename;
+    return do_execve(getname_kernel(init_filename),
+            (
+    const char __user
+    *
+    const __user *)argv_init,
+    (const char __user
+    *
+    const __user *)envp_init);
 }
 
-static int try_to_run_init_process(const char *init_filename)
-{
-	int ret;
+static int try_to_run_init_process(const char *init_filename) {
+    int ret;
 
-	ret = run_init_process(init_filename);
+    ret = run_init_process(init_filename);
 
-	if (ret && ret != -ENOENT) {
-		pr_err("Starting init: %s exists but couldn't execute it (error %d)\n",
-		       init_filename, ret);
-	}
+    if (ret && ret != -ENOENT) {
+        pr_err("Starting init: %s exists but couldn't execute it (error %d)\n",
+               init_filename, ret);
+    }
 
-	return ret;
+    return ret;
 }
 
-static noinline void __init kernel_init_freeable(void);
+static noinline void __init
 
-static int __ref kernel_init(void *unused)
-{
-	int ret;
+kernel_init_freeable(void);
 
-	kernel_init_freeable();
-	/* need to finish all async __init code before freeing the memory */
-	async_synchronize_full();
-	free_initmem();
-	mark_rodata_ro();
-	system_state = SYSTEM_RUNNING;
-	numa_default_policy();
+static int __ref
 
-	flush_delayed_fput();
+kernel_init(void *unused) {
+    int ret;
 
-	if (ramdisk_execute_command) {
-		ret = run_init_process(ramdisk_execute_command);
-		if (!ret)
-			return 0;
-		pr_err("Failed to execute %s (error %d)\n",
-		       ramdisk_execute_command, ret);
-	}
+    kernel_init_freeable();
+    /* need to finish all async __init code before freeing the memory */
+    async_synchronize_full();
+    free_initmem();
+    mark_rodata_ro();
+    system_state = SYSTEM_RUNNING;
+    numa_default_policy();
 
-	/*
-	 * We try each of these until one succeeds.
-	 *
-	 * The Bourne shell can be used instead of init if we are
-	 * trying to recover a really broken machine.
-	 */
-	if (execute_command) {
-		ret = run_init_process(execute_command);
-		if (!ret)
-			return 0;
-		panic("Requested init %s failed (error %d).",
-		      execute_command, ret);
-	}
-	if (!try_to_run_init_process("/sbin/init") ||
-	    !try_to_run_init_process("/etc/init") ||
-	    !try_to_run_init_process("/bin/init") ||
-	    !try_to_run_init_process("/bin/sh"))
-		return 0;
+    flush_delayed_fput();
 
-	panic("No working init found.  Try passing init= option to kernel. "
-	      "See Linux Documentation/init.txt for guidance.");
+    if (ramdisk_execute_command) {
+        ret = run_init_process(ramdisk_execute_command);
+        if (!ret)
+            return 0;
+        pr_err("Failed to execute %s (error %d)\n",
+               ramdisk_execute_command, ret);
+    }
+
+    /*
+     * We try each of these until one succeeds.
+     *
+     * The Bourne shell can be used instead of init if we are
+     * trying to recover a really broken machine.
+     */
+    if (execute_command) {
+        ret = run_init_process(execute_command);
+        if (!ret)
+            return 0;
+        panic("Requested init %s failed (error %d).",
+              execute_command, ret);
+    }
+    if (!try_to_run_init_process("/sbin/init") ||
+        !try_to_run_init_process("/etc/init") ||
+        !try_to_run_init_process("/bin/init") ||
+        !try_to_run_init_process("/bin/sh"))
+        return 0;
+
+    panic("No working init found.  Try passing init= option to kernel. "
+          "See Linux Documentation/init.txt for guidance.");
 }
 
-static noinline void __init kernel_init_freeable(void)
-{
-	/*
-	 * Wait until kthreadd is all set-up.
-	 */
-	wait_for_completion(&kthreadd_done);
+static noinline void __init
 
-	/* Now the scheduler is fully set up and can do blocking allocations */
-	gfp_allowed_mask = __GFP_BITS_MASK;
+kernel_init_freeable(void) {
+    /*
+     * Wait until kthreadd is all set-up.
+     */
+    wait_for_completion(&kthreadd_done);
 
-	/*
-	 * init can allocate pages on any node
-	 */
-	set_mems_allowed(node_states[N_MEMORY]);
-	/*
-	 * init can run on any cpu.
-	 */
-	set_cpus_allowed_ptr(current, cpu_all_mask);
+    /* Now the scheduler is fully set up and can do blocking allocations */
+    gfp_allowed_mask = __GFP_BITS_MASK;
 
-	cad_pid = task_pid(current);
+    /*
+     * init can allocate pages on any node
+     */
+    set_mems_allowed(node_states[N_MEMORY]);
+    /*
+     * init can run on any cpu.
+     */
+    set_cpus_allowed_ptr(current, cpu_all_mask);
 
-	smp_prepare_cpus(setup_max_cpus);
+    cad_pid = task_pid(current);
 
-	do_pre_smp_initcalls();
-	lockup_detector_init();
+    smp_prepare_cpus(setup_max_cpus);
 
-	smp_init();
-	sched_init_smp();
+    do_pre_smp_initcalls();
+    lockup_detector_init();
 
-	page_alloc_init_late();
+    smp_init();
+    sched_init_smp();
 
-	do_basic_setup();
+    page_alloc_init_late();
 
-	/* Open the /dev/console on the rootfs, this should never fail */
-	if (sys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
-		pr_err("Warning: unable to open an initial console.\n");
+    do_basic_setup();
 
-	(void) sys_dup(0);
-	(void) sys_dup(0);
-	/*
-	 * check if there is an early userspace init.  If yes, let it do all
-	 * the work
-	 */
+    /* Open the /dev/console on the rootfs, this should never fail */
+    if (sys_open((const char __user
+    *) "/dev/console", O_RDWR, 0) < 0)
+    pr_err("Warning: unable to open an initial console.\n");
 
-	if (!ramdisk_execute_command)
-		ramdisk_execute_command = "/init";
+    (void) sys_dup(0);
+    (void) sys_dup(0);
+    /*
+     * check if there is an early userspace init.  If yes, let it do all
+     * the work
+     */
 
-	if (sys_access((const char __user *) ramdisk_execute_command, 0) != 0) {
-		ramdisk_execute_command = NULL;
-		prepare_namespace();
-	}
+    if (!ramdisk_execute_command)
+        ramdisk_execute_command = "/init";
 
-	/*
-	 * Ok, we have completed the initial bootup, and
-	 * we're essentially up and running. Get rid of the
-	 * initmem segments and start the user-mode stuff..
-	 *
-	 * rootfs is available now, try loading the public keys
-	 * and default modules
-	 */
+    if (sys_access((const char __user
+    *) ramdisk_execute_command, 0) != 0) {
+        ramdisk_execute_command = NULL;
+        prepare_namespace();
+    }
 
-	integrity_load_keys();
-	load_default_modules();
+    /*
+     * Ok, we have completed the initial bootup, and
+     * we're essentially up and running. Get rid of the
+     * initmem segments and start the user-mode stuff..
+     *
+     * rootfs is available now, try loading the public keys
+     * and default modules
+     */
+
+    integrity_load_keys();
+    load_default_modules();
 }

@@ -150,9 +150,9 @@ size_t ksize(const void *);
  * Setting ARCH_KMALLOC_MINALIGN in arch headers allows that.
  */
 #if defined(ARCH_DMA_MINALIGN) && ARCH_DMA_MINALIGN > 8
-#define ARCH_KMALLOC_MINALIGN ARCH_DMA_MINALIGN
-#define KMALLOC_MIN_SIZE ARCH_DMA_MINALIGN
-#define KMALLOC_SHIFT_LOW ilog2(ARCH_DMA_MINALIGN)
+#define ARCH_KMALLOC_MINALIGN ARCH_DMA_MINALIGN // 即为64B
+#define KMALLOC_MIN_SIZE ARCH_DMA_MINALIGN      // 即为64B
+#define KMALLOC_SHIFT_LOW ilog2(ARCH_DMA_MINALIGN)  // 位移量为6，对应64B
 #else
 #define ARCH_KMALLOC_MINALIGN __alignof__(unsigned long long)
 #endif
@@ -190,8 +190,8 @@ size_t ksize(const void *);
  * ensure proper constant folding.
  */
 #define KMALLOC_SHIFT_HIGH	((MAX_ORDER + PAGE_SHIFT - 1) <= 25 ? \
-				(MAX_ORDER + PAGE_SHIFT - 1) : 25)
-#define KMALLOC_SHIFT_MAX	KMALLOC_SHIFT_HIGH
+				(MAX_ORDER + PAGE_SHIFT - 1) : 25) // 位移量为22，对应4MB大小
+#define KMALLOC_SHIFT_MAX	KMALLOC_SHIFT_HIGH     // 位移量为22，对应4MB大小
 #ifndef KMALLOC_SHIFT_LOW
 #define KMALLOC_SHIFT_LOW	5
 #endif
@@ -446,7 +446,7 @@ static __always_inline void *kmalloc_large(size_t size, gfp_t flags)
 static __always_inline void *kmalloc(size_t size, gfp_t flags)
 {
 	if (__builtin_constant_p(size)) {
-		if (size > KMALLOC_MAX_CACHE_SIZE)
+		if (size > KMALLOC_MAX_CACHE_SIZE) // > 4MB
 			return kmalloc_large(size, flags);
 #ifndef CONFIG_SLOB
 		if (!(flags & GFP_DMA)) {

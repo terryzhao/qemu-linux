@@ -844,7 +844,7 @@ struct file {
 		struct llist_node	fu_llist;
 		struct rcu_head 	fu_rcuhead;
 	} f_u;
-	struct path		f_path;
+	struct path		f_path;  /*文件所属dentry及super_block等*/
 	struct inode		*f_inode;	/* cached value */
 	const struct file_operations	*f_op;   /*指向文件操作表的指针*/
 
@@ -1294,7 +1294,7 @@ struct super_block {
 	unsigned long		s_flags;
 	unsigned long		s_iflags;	/* internal SB_I_* flags */
 	unsigned long		s_magic;    /*魔数，即该具体文件系统区别于其它文系统的一个标志*/
-	struct dentry		*s_root;
+	struct dentry		*s_root;    /*挂载的根目录*/
 	struct rw_semaphore	s_umount;
 	int			s_count;
 	atomic_t		s_active;

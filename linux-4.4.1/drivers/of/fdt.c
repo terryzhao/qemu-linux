@@ -896,7 +896,7 @@ u64 __init dt_mem_next_cell(int s, const __be32 **cellp)
 int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 				     int depth, void *data)
 {
-	const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
+	const char *type = of_get_flat_dt_prop(node, "device_type", NULL); //device_type = "memory"
 	const __be32 *reg, *endp;
 	int l;
 
@@ -913,7 +913,7 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 
 	reg = of_get_flat_dt_prop(node, "linux,usable-memory", &l);
 	if (reg == NULL)
-		reg = of_get_flat_dt_prop(node, "reg", &l);
+		reg = of_get_flat_dt_prop(node, "reg", &l); //reg = <0x60000000 0x40000000>
 	if (reg == NULL)
 		return 0;
 
@@ -924,15 +924,15 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 	while ((endp - reg) >= (dt_root_addr_cells + dt_root_size_cells)) {
 		u64 base, size;
 
-		base = dt_mem_next_cell(dt_root_addr_cells, &reg);
-		size = dt_mem_next_cell(dt_root_size_cells, &reg);
+		base = dt_mem_next_cell(dt_root_addr_cells, &reg); //0x60000000
+		size = dt_mem_next_cell(dt_root_size_cells, &reg); //0x40000000
 
 		if (size == 0)
 			continue;
 		pr_debug(" - %llx ,  %llx\n", (unsigned long long)base,
 		    (unsigned long long)size);
 
-		early_init_dt_add_memory_arch(base, size);
+		early_init_dt_add_memory_arch(base, size); //进行base, size有效性检查
 	}
 
 	return 0;

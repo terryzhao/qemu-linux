@@ -811,7 +811,7 @@ int tg_nop(struct task_group *tg, void *data)
 
 static void set_load_weight(struct task_struct *p)
 {
-	int prio = p->static_prio - MAX_RT_PRIO;
+	int prio = p->static_prio - MAX_RT_PRIO; // 权重值取决于static_prio，减去100而不是120，对应了下面数组下标
 	struct load_weight *load = &p->se.load;
 
 	/*
@@ -2187,20 +2187,20 @@ int sysctl_numa_balancing(struct ctl_table *table, int write,
 int sched_fork(unsigned long clone_flags, struct task_struct *p)
 {
 	unsigned long flags;
-	int cpu = get_cpu();
+	int cpu = get_cpu(); // 首先关闭内核抢占，然后获取当前CPU id
 
-	__sched_fork(clone_flags, p);
+	__sched_fork(clone_flags, p); // 填充sched_entity数据结构，初始化调度相关设置
 	/*
 	 * We mark the process as running here. This guarantees that
 	 * nobody will actually run it, and a signal or other external
 	 * event cannot wake it up and insert it on the runqueue either.
 	 */
-	p->state = TASK_RUNNING;
+	p->state = TASK_RUNNING; // 设置为运行状态，虽然还没有实际运行
 
 	/*
 	 * Make sure we do not leak PI boosting priority to the child.
 	 */
-	p->prio = current->normal_prio;
+	p->prio = current->normal_prio; // 继承父进程normal_prio作为子进程prio
 
 	/*
 	 * Revert to default priority/policy on fork if requested.
@@ -2223,13 +2223,13 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 		p->sched_reset_on_fork = 0;
 	}
 
-	if (dl_prio(p->prio)) {
+	if (dl_prio(p->prio)) { // SCHED_DEADLINE优先级应该是负值，即小于0
 		put_cpu();
 		return -EAGAIN;
-	} else if (rt_prio(p->prio)) {
+	} else if (rt_prio(p->prio)) { // SCHED_RT优先级为0-99
 		p->sched_class = &rt_sched_class;
 	} else {
-		p->sched_class = &fair_sched_class;
+		p->sched_class = &fair_sched_class; // SCHED_FAIR优先级为100-139
 	}
 
 	if (p->sched_class->task_fork)
@@ -2243,7 +2243,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * Silence PROVE_RCU.
 	 */
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
-	set_task_cpu(p, cpu);
+	set_task_cpu(p, cpu); // 重要一点就是检查p->stack->cpu是不是当期CPU，如果不是则需要进行迁移。迁移函数使用之前确定的sched_class->migrate_task_rq
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
 
 #ifdef CONFIG_SCHED_INFO
@@ -2259,7 +2259,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	RB_CLEAR_NODE(&p->pushable_dl_tasks);
 #endif
 
-	put_cpu();
+	put_cpu(); // 再次允许内核抢占
 	return 0;
 }
 

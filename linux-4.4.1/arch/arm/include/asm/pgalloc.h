@@ -131,12 +131,12 @@ static inline void pte_free(struct mm_struct *mm, pgtable_t pte)
 static inline void __pmd_populate(pmd_t *pmdp, phys_addr_t pte,
 				  pmdval_t prot)
 {
-	pmdval_t pmdval = (pte + PTE_HWTABLE_OFF) | prot;
+	pmdval_t pmdval = (pte + PTE_HWTABLE_OFF) | prot; //生成pmdp[0]的内容
 	pmdp[0] = __pmd(pmdval);
 #ifndef CONFIG_ARM_LPAE
-	pmdp[1] = __pmd(pmdval + 256 * sizeof(pte_t));
+	pmdp[1] = __pmd(pmdval + 256 * sizeof(pte_t)); //生成紧邻的pmdp[1]的内容
 #endif
-	flush_pmd_entry(pmdp);
+	flush_pmd_entry(pmdp); //将pmdp两个刷入到RAM中
 }
 
 /*

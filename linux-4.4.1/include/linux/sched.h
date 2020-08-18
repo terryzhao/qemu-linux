@@ -1182,8 +1182,8 @@ struct pipe_inode_info;
 struct uts_namespace;
 
 struct load_weight {
-	unsigned long weight;
-	u32 inv_weight;
+	unsigned long weight;  // 调度实体的权重
+	u32 inv_weight;        // inverse weight，是权重一个中间计算结果
 };
 
 /*

@@ -52,7 +52,7 @@ enum slab_state {
 	PARTIAL,		/* SLUB: kmem_cache_node available */
 	PARTIAL_NODE,		/* SLAB: kmalloc size for node struct available */
 	UP,			/* Slab caches usable but not all extras yet */
-	FULL			/* Everything is working */
+	FULL			/* Everything is working */  // --- 完全初始化
 };
 
 extern enum slab_state slab_state;
@@ -327,13 +327,13 @@ struct kmem_cache_node {
 	spinlock_t list_lock; /*保护结构内数据的自旋锁*/ 
 
 #ifdef CONFIG_SLAB
-	struct list_head slabs_partial;	/* partial list first, better asm code */
-	struct list_head slabs_full;
-	struct list_head slabs_free;
-	unsigned long free_objects;
-	unsigned int free_limit;
+	struct list_head slabs_partial;	/* partial list first, better asm code */ // slab链表中部分对象空闲
+	struct list_head slabs_full; // slab链表中没有对象空闲
+	struct list_head slabs_free; // slab链表中所有对象空闲
+	unsigned long free_objects;  // 三个链表中空闲对象数目
+	unsigned int free_limit;     // slab中可容许的空闲对象数目最大阈值
 	unsigned int colour_next;	/* Per-node cache coloring */
-	struct array_cache *shared;	/* shared per node */
+	struct array_cache *shared;	/* shared per node */ // 多核CPU公用的共享对象缓冲池
 	struct alien_cache **alien;	/* on other nodes */
 	unsigned long next_reap;	/* updated without locking */
 	int free_touched;		/* updated without locking */

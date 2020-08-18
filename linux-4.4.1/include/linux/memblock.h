@@ -46,8 +46,8 @@ struct memblock_type {
 struct memblock {
 	bool bottom_up;  /* is bottom up direction? */
 	phys_addr_t current_limit;
-	struct memblock_type memory;
-	struct memblock_type reserved;
+	struct memblock_type memory;   //添加物理内存区域
+	struct memblock_type reserved; //添加预留内存区域
 #ifdef CONFIG_HAVE_MEMBLOCK_PHYS_MAP
 	struct memblock_type physmem;
 #endif

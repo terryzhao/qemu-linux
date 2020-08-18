@@ -18,7 +18,7 @@ static inline int fsr_fs(unsigned int fsr)
 #else
 static inline int fsr_fs(unsigned int fsr)
 {
-	return (fsr & FSR_FS3_0) | (fsr & FSR_FS4) >> 6;
+	return (fsr & FSR_FS3_0) | (fsr & FSR_FS4) >> 6;  // 取fsr低4位；再与fsr第11位，然后右移6位，最后再与低4位或
 }
 #endif
 

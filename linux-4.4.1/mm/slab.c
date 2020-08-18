@@ -184,14 +184,14 @@ static bool pfmemalloc_active __read_mostly;
  *
  * The limit is stored in the per-cpu structure to reduce the data cache
  * footprint.
- *
+ * 本地CPU缓冲池struct array_cache：
  */
 struct array_cache {
-	unsigned int avail;
+	unsigned int avail;  // 对象缓冲池中可用的对象数目
 	unsigned int limit;
 	unsigned int batchcount;
-	unsigned int touched;
-	void *entry[];	/*
+	unsigned int touched; // 从缓冲池移除一个对象时，touched置1；收缩缓存时，touched置0
+	void *entry[];	/* 保存对象的实体
 			 * Must have this definition in here for the proper
 			 * alignment of array_cache. Also simplifies accessing
 			 * the entries.
@@ -551,12 +551,12 @@ static void cache_estimate(unsigned long gfporder, size_t buffer_size,
 		nr_objs = slab_size / buffer_size;
 
 	} else {
-		nr_objs = calculate_nr_objs(slab_size, buffer_size,
+		nr_objs = calculate_nr_objs(slab_size, buffer_size, // 可以容纳对象数
 					sizeof(freelist_idx_t), align);
 		mgmt_size = calculate_freelist_size(nr_objs, align);
 	}
 	*num = nr_objs;
-	*left_over = slab_size - nr_objs*buffer_size - mgmt_size;
+	*left_over = slab_size - nr_objs*buffer_size - mgmt_size; // 除去对象大小和管理slab额外开销外，剩余部分
 }
 
 #if DEBUG
@@ -1924,6 +1924,7 @@ static void slabs_destroy(struct kmem_cache *cachep, struct list_head *list)
  * This could be made much more intelligent.  For now, try to avoid using
  * high order pages for slabs.  When the gfp() functions are more friendly
  * towards high-order requests, this should be changed.
+ * calculate_slab_order计算slab的大小，返回值是page order。同时也计算此slab中可以容纳多少个同样大小的对象。
  */
 static size_t calculate_slab_order(struct kmem_cache *cachep,
 			size_t size, size_t align, unsigned long flags)
@@ -1932,16 +1933,16 @@ static size_t calculate_slab_order(struct kmem_cache *cachep,
 	size_t left_over = 0;
 	int gfporder;
 
-	for (gfporder = 0; gfporder <= KMALLOC_MAX_ORDER; gfporder++) {
+	for (gfporder = 0; gfporder <= KMALLOC_MAX_ORDER; gfporder++) { // ------从gfporder=0开始，直到KMALLOC_MAX_ORDER=10，即从4KB到4MB大小
 		unsigned int num;
 		size_t remainder;
 
 		cache_estimate(gfporder, size, align, flags, &remainder, &num);
-		if (!num)
+		if (!num) // 不等于0则表示gfporder已经满足条件，最低分配到一个size大小的对象。等于0则继续下一次for循环
 			continue;
 
 		/* Can't handle number of objects more than SLAB_OBJ_MAX_NUM */
-		if (num > SLAB_OBJ_MAX_NUM)
+		if (num > SLAB_OBJ_MAX_NUM) // slab中对象最大数目，SLAB_OBJ_MAX_NUM为255，所以所有的slab对象不超过255
 			break;
 
 		if (flags & CFLGS_OFF_SLAB) {
@@ -1963,7 +1964,7 @@ static size_t calculate_slab_order(struct kmem_cache *cachep,
 		/* Found something acceptable - save it away */
 		cachep->num = num;
 		cachep->gfporder = gfporder;
-		left_over = remainder;
+		left_over = remainder; // 确定对象个数和需要的页面数
 
 		/*
 		 * A VFS-reclaimable slab tends to have most allocations
@@ -1983,7 +1984,7 @@ static size_t calculate_slab_order(struct kmem_cache *cachep,
 		/*
 		 * Acceptable internal fragmentation?
 		 */
-		if (left_over * 8 <= (PAGE_SIZE << gfporder))
+		if (left_over * 8 <= (PAGE_SIZE << gfporder)) // 满足着色条件，退出for循环
 			break;
 	}
 	return left_over;
@@ -2131,7 +2132,7 @@ __kmem_cache_create (struct kmem_cache *cachep, unsigned long flags)
 	if (size & (BYTES_PER_WORD - 1)) {
 		size += (BYTES_PER_WORD - 1);
 		size &= ~(BYTES_PER_WORD - 1);
-	}
+	} // 4字节对齐
 
 	if (flags & SLAB_RED_ZONE) {
 		ralign = REDZONE_ALIGN;
@@ -2151,9 +2152,9 @@ __kmem_cache_create (struct kmem_cache *cachep, unsigned long flags)
 	/*
 	 * 4) Store it.
 	 */
-	cachep->align = ralign;
+	cachep->align = ralign; // 对齐大小设置到struct kmem_cache
 
-	if (slab_is_available())
+	if (slab_is_available()) // slab_state>=UP时，可以使用GFP_KERNEL分配，否则只能使用GFP_NOWAIT
 		gfp = GFP_KERNEL;
 	else
 		gfp = GFP_NOWAIT;
@@ -2210,7 +2211,7 @@ __kmem_cache_create (struct kmem_cache *cachep, unsigned long flags)
 		 */
 		flags |= CFLGS_OFF_SLAB;
 
-	size = ALIGN(size, cachep->align);
+	size = ALIGN(size, cachep->align); // 按照cachep->align对size进行对齐
 	/*
 	 * We should restrict the number of objects in a slab to implement
 	 * byte sized index. Refer comment on SLAB_OBJ_MIN_SIZE definition.
@@ -2248,7 +2249,7 @@ __kmem_cache_create (struct kmem_cache *cachep, unsigned long flags)
 #endif
 	}
 
-	cachep->colour_off = cache_line_size();
+	cachep->colour_off = cache_line_size(); // L1 Cache line大小，由CONFIG_ARM_L1_CACHE_SHIFT配置，此处为64B
 	/* Offset must be a multiple of the alignment. */
 	if (cachep->colour_off < cachep->align)
 		cachep->colour_off = cachep->align;
@@ -2273,7 +2274,7 @@ __kmem_cache_create (struct kmem_cache *cachep, unsigned long flags)
 		BUG_ON(ZERO_OR_NULL_PTR(cachep->freelist_cache));
 	}
 
-	err = setup_cpu_cache(cachep, gfp);
+	err = setup_cpu_cache(cachep, gfp); // 根据slab_state状态进行不同处理，计算limit/batchcount，分配本地对象缓冲池，共享对象缓冲池
 	if (err) {
 		__kmem_cache_shutdown(cachep);
 		return err;
@@ -2769,7 +2770,7 @@ static void *cache_alloc_refill(struct kmem_cache *cachep, gfp_t flags,
 	if (unlikely(force_refill))
 		goto force_grow;
 retry:
-	ac = cpu_cache_get(cachep);
+	ac = cpu_cache_get(cachep); // 获取本地对象缓冲池ac
 	batchcount = ac->batchcount;
 	if (!ac->touched && batchcount > BATCHREFILL_LIMIT) {
 		/*
@@ -2779,18 +2780,18 @@ retry:
 		 */
 		batchcount = BATCHREFILL_LIMIT;
 	}
-	n = get_node(cachep, node);
+	n = get_node(cachep, node); // 找到对应的slab节点
 
 	BUG_ON(ac->avail > 0 || !n);
 	spin_lock(&n->list_lock);
 
 	/* See if we can refill from the shared array */
-	if (n->shared && transfer_objects(ac, n->shared, batchcount)) {
+	if (n->shared && transfer_objects(ac, n->shared, batchcount)) { // 判断共享对象缓冲池(n->shared)是否有空想对象。tansfer_objects尝试迁移batchcount个空闲对象到ac中
 		n->shared->touched = 1;
 		goto alloc_done;
 	}
 
-	while (batchcount > 0) {
+	while (batchcount > 0) { // 尝试从slabs_partial/slabs_free中分配对象
 		struct list_head *entry;
 		struct page *page;
 		/* Get slab alloc is to come from. */
@@ -2799,7 +2800,7 @@ retry:
 			n->free_touched = 1;
 			entry = n->slabs_free.next;
 			if (entry == &n->slabs_free)
-				goto must_grow;
+				goto must_grow; // 如果slabs_partial/slabs_free都为空，则跳到must_grow分配对象
 		}
 
 		page = list_entry(entry, struct page, lru);
@@ -2818,12 +2819,12 @@ retry:
 			STATS_SET_HIGH(cachep);
 
 			ac_put_obj(cachep, ac, slab_get_obj(cachep, page,
-									node));
+									node)); // ac_put_obj将slab_get_obj获取到的对象迁移到ac中
 		}
 
 		/* move slabp to correct slabp list: */
 		list_del(&page->lru);
-		if (page->active == cachep->num)
+		if (page->active == cachep->num)  // 将获取到的slab挂到合适的链表
 			list_add(&page->lru, &n->slabs_full);
 		else
 			list_add(&page->lru, &n->slabs_partial);
@@ -2834,10 +2835,10 @@ must_grow:
 alloc_done:
 	spin_unlock(&n->list_lock);
 
-	if (unlikely(!ac->avail)) {
+	if (unlikely(!ac->avail)) { // ac->avail为0表示从共享对象缓冲池、slabs_free/slabs_partial都失败了
 		int x;
 force_grow:
-		x = cache_grow(cachep, gfp_exact_node(flags), node, NULL);
+		x = cache_grow(cachep, gfp_exact_node(flags), node, NULL); // 在cachep中创建一个slab，并挂到slabs_free链表中
 
 		/* cache_grow can reenable interrupts, then ac could change. */
 		ac = cpu_cache_get(cachep);
@@ -2933,10 +2934,10 @@ static inline void *____cache_alloc(struct kmem_cache *cachep, gfp_t flags)
 
 	check_irq_off();
 
-	ac = cpu_cache_get(cachep);
-	if (likely(ac->avail)) {
+	ac = cpu_cache_get(cachep); // 获取本地对象缓冲池
+	if (likely(ac->avail)) { // 本地对象缓冲池是否有空闲对象
 		ac->touched = 1;
-		objp = ac_get_obj(cachep, ac, flags, false);
+		objp = ac_get_obj(cachep, ac, flags, false); // 从本地对象缓冲池中分配一个对象
 
 		/*
 		 * Allow for the possibility all avail objects are not allowed
@@ -2944,13 +2945,13 @@ static inline void *____cache_alloc(struct kmem_cache *cachep, gfp_t flags)
 		 */
 		if (objp) {
 			STATS_INC_ALLOCHIT(cachep);
-			goto out;
+			goto out; // 如果成功获得objp，那么直接返回指针
 		}
 		force_refill = true;
 	}
 
 	STATS_INC_ALLOCMISS(cachep);
-	objp = cache_alloc_refill(cachep, flags, force_refill);
+	objp = cache_alloc_refill(cachep, flags, force_refill); // 是slab分配缓存的核心
 	/*
 	 * the 'ac' may be updated by cache_alloc_refill(),
 	 * and kmemleak_erase() requires its correct value.
@@ -3246,7 +3247,7 @@ slab_alloc(struct kmem_cache *cachep, gfp_t flags, unsigned long caller)
 	cachep = memcg_kmem_get_cache(cachep, flags);
 
 	cache_alloc_debugcheck_before(cachep, flags);
-	local_irq_save(save_flags);
+	local_irq_save(save_flags); // 全程关本地中断
 	objp = __do_cache_alloc(cachep, flags);
 	local_irq_restore(save_flags);
 	objp = cache_alloc_debugcheck_after(cachep, flags, objp, caller);

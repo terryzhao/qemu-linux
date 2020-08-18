@@ -520,6 +520,7 @@ void __init smp_setup_processor_id(void)
 	u32 cpu = MPIDR_AFFINITY_LEVEL(mpidr, 0);
 
 	cpu_logical_map(0) = cpu;
+    pr_info("Booting Linux on smp_setup_processor_id nr_cpu_ids =  %d\n", nr_cpu_ids);
 	for (i = 1; i < nr_cpu_ids; ++i)
 		cpu_logical_map(i) = i == cpu ? 0 : i;
 
@@ -684,6 +685,8 @@ int __init arm_add_memory(u64 start, u64 size)
 		size = 0;
 	else
 		size -= aligned_start - start;
+
+	pr_notice("arm_add_memory:  aligned_start = 0x%08x,  size=0x%08x", aligned_start, size);
 
 #ifndef CONFIG_ARCH_PHYS_ADDR_T_64BIT
 	if (aligned_start > ULONG_MAX) {
@@ -951,6 +954,9 @@ void __init setup_arch(char **cmdline_p)
 	init_mm.end_code   = (unsigned long) _etext;
 	init_mm.end_data   = (unsigned long) _edata;
 	init_mm.brk	   = (unsigned long) _end;
+
+	pr_notice("setup_arch ---- start_code = 0x%08x, end_code = 0x%08x, end_data = 0x%08x, brk = 0x%08x\n",
+	        init_mm.start_code, init_mm.end_code, init_mm.end_data, init_mm.brk);
 
 	/* populate cmd_line too for later use, preserving boot_command_line */
 	strlcpy(cmd_line, boot_command_line, COMMAND_LINE_SIZE);

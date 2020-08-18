@@ -74,9 +74,9 @@ ENDPROC(cpu_ca8_switch_mm)
  *	Set a level 2 translation table entry.
  *
  *	- ptep  - pointer to level 2 translation table entry
- *		  (hardware version is stored at +2048 bytes)
- *	- pte   - PTE value to store
- *	- ext	- value for extended PTE bits
+ *		  (hardware version is stored at +2048 bytes) , 放入r0
+ *	- pte   - PTE value to store , 放入r1
+ *	- ext	- value for extended PTE bits , 放入r2
  */
 ENTRY(cpu_v7_set_pte_ext)
 /*
@@ -85,25 +85,25 @@ r1:页表属性|物理地址偏移
 将页表属性r1配置给页表项r0
 */
 #ifdef CONFIG_MMU
-	str	r1, [r0]			@ linux version
+	str	r1, [r0]			   @ linux version 将r1的值存入r0地址的内存中
 
-	bic	r3, r1, #0x000003f0
-	bic	r3, r3, #PTE_TYPE_MASK
-	orr	r3, r3, r2
-	orr	r3, r3, #PTE_EXT_AP0 | 2
+	bic	r3, r1, #0x000003f0    @ 清除r1的bit[9:4]，存入r3
+	bic	r3, r3, #PTE_TYPE_MASK @PTE_TYPE_MASK为0x03，记清除低2位
+	orr	r3, r3, r2             @ r3与r2或，存入r3
+	orr	r3, r3, #PTE_EXT_AP0 | 2  @这里将bit1和bit4置位，所以是Small page
 
-	tst	r1, #1 << 4
-	orrne	r3, r3, #PTE_EXT_TEX(1)
+	tst	r1, #1 << 4            @ 判断r1的bit4是否为0
+	orrne	r3, r3, #PTE_EXT_TEX(1)  @ 设置TEX为1
 
 	eor	r1, r1, #L_PTE_DIRTY
 	tst	r1, #L_PTE_RDONLY | L_PTE_DIRTY
-	orrne	r3, r3, #PTE_EXT_APX
+	orrne	r3, r3, #PTE_EXT_APX @ 设置AP[2]
 
 	tst	r1, #L_PTE_USER
-	orrne	r3, r3, #PTE_EXT_AP1
+	orrne	r3, r3, #PTE_EXT_AP1 @ 设置AP[1]
 
 	tst	r1, #L_PTE_XN
-	orrne	r3, r3, #PTE_EXT_XN
+	orrne	r3, r3, #PTE_EXT_XN  @ 设置XN位
 
 	tst	r1, #L_PTE_YOUNG
 	tstne	r1, #L_PTE_VALID
@@ -111,7 +111,7 @@ r1:页表属性|物理地址偏移
 	tstne	r1, #L_PTE_NONE
 	moveq	r3, #0
 
- ARM(	str	r3, [r0, #2048]! )
+ ARM(	str	r3, [r0, #2048]! )  @ 并没有写入r0，而是写入r0+2048Bytes的偏移。
  THUMB(	add	r0, r0, #2048 )
  THUMB(	str	r3, [r0] )
 	ALT_SMP(W(nop))

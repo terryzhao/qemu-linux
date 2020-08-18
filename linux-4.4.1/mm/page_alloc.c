@@ -2364,7 +2364,7 @@ static bool __zone_watermark_ok(struct zone *z, unsigned int order,
 	const int alloc_harder = (alloc_flags & ALLOC_HARDER);
 
 	/* free_pages may go negative - that's OK */
-	free_pages -= (1 << order) - 1;
+	free_pages -= (1 << order) - 1;  // 减去待分配页面后剩余页面数，-1？？
 
 	if (alloc_flags & ALLOC_HIGH)
 		min -= min / 2;
@@ -2381,7 +2381,7 @@ static bool __zone_watermark_ok(struct zone *z, unsigned int order,
 
 #ifdef CONFIG_CMA
 	/* If allocation can't use CMA areas don't use free CMA pages */
-	if (!(alloc_flags & ALLOC_CMA))
+	if (!(alloc_flags & ALLOC_CMA)) // 空闲页面数要保证大于min值和lowmem_resreve保留值之和
 		free_pages -= zone_page_state(z, NR_FREE_CMA_PAGES);
 #endif
 
@@ -2398,7 +2398,7 @@ static bool __zone_watermark_ok(struct zone *z, unsigned int order,
 		return true;
 
 	/* For a high-order request, check at least one suitable page is free */
-	for (o = order; o < MAX_ORDER; o++) {
+	for (o = order; o < MAX_ORDER; o++) { // 遍历buddy中比当前请求分配order小的所有order，依次检查free pages是否满足watermark需求
 		struct free_area *area = &z->free_area[o];
 		int mt;
 
@@ -2479,7 +2479,7 @@ static void reset_alloc_batches(struct zone *preferred_zone)
 
 /*
  * get_page_from_freelist goes through the zonelist trying to allocate
- * a page.
+ * a page.  get_page_from_freelist遍历ac->zonelist中的zone，在里面寻找满足条件的zone，然后找到页面，返回
  */
 static struct page *
 get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
@@ -2492,14 +2492,14 @@ get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
 	int nr_fair_skipped = 0;
 	bool zonelist_rescan;
 
-zonelist_scan:
+zonelist_scan:  //开始检查ac->zonelist
 	zonelist_rescan = false;
 
 	/*
 	 * Scan zonelist, looking for a zone with enough free.
 	 * See also __cpuset_node_allowed() comment in kernel/cpuset.c.
 	 */
-	for_each_zone_zonelist_nodemask(zone, z, zonelist, ac->high_zoneidx,
+	for_each_zone_zonelist_nodemask(zone, z, zonelist, ac->high_zoneidx, //从zonelist给定的ac->high_zoneidx开始查找，返回的是zone
 								ac->nodemask) {
 		unsigned long mark;
 
@@ -2550,8 +2550,8 @@ zonelist_scan:
 		if (ac->spread_dirty_pages && !zone_dirty_ok(zone))
 			continue;
 
-		mark = zone->watermark[alloc_flags & ALLOC_WMARK_MASK];
-		if (!zone_watermark_ok(zone, order, mark,
+		mark = zone->watermark[alloc_flags & ALLOC_WMARK_MASK]; //这里的alloc_flags包含ALLOC_WMARK_LOW
+		if (!zone_watermark_ok(zone, order, mark,  //所以此处会检查zone的低水位，不满足则进行检查，或者尝试zone_reclaim
 				       ac->classzone_idx, alloc_flags)) {
 			int ret;
 
@@ -2564,7 +2564,7 @@ zonelist_scan:
 			    !zone_allows_reclaim(ac->preferred_zone, zone))
 				continue;
 
-			ret = zone_reclaim(zone, gfp_mask, order);
+			ret = zone_reclaim(zone, gfp_mask, order); //通过zone_reclaim进行一些页面回收
 			switch (ret) {
 			case ZONE_RECLAIM_NOSCAN:
 				/* did not scan */
@@ -2574,7 +2574,7 @@ zonelist_scan:
 				continue;
 			default:
 				/* did we reclaim enough */
-				if (zone_watermark_ok(zone, order, mark,
+				if (zone_watermark_ok(zone, order, mark, //再次检查水位是否满足
 						ac->classzone_idx, alloc_flags))
 					goto try_this_zone;
 
@@ -2582,8 +2582,8 @@ zonelist_scan:
 			}
 		}
 
-try_this_zone:
-		page = buffered_rmqueue(ac->preferred_zone, zone, order,
+try_this_zone: //包括水位各种条件都满足之后，可以在此zone进行页面分配工作
+		page = buffered_rmqueue(ac->preferred_zone, zone, order, //从zone中进行页面分配工作
 				gfp_mask, alloc_flags, ac->migratetype);
 		if (page) {
 			if (prep_new_page(page, order, gfp_mask, alloc_flags))
@@ -3184,9 +3184,9 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET|ALLOC_FAIR;
 	gfp_t alloc_mask; /* The gfp_t that was actually used for allocation */
 	struct alloc_context ac = {
-		.high_zoneidx = gfp_zone(gfp_mask),
+		.high_zoneidx = gfp_zone(gfp_mask), // gfp_zone根据gfp_mask低4位，找到对应的zone_type。ZONE_NORMAL？ZONE_HIGHMEM？
 		.nodemask = nodemask,
-		.migratetype = gfpflags_to_migratetype(gfp_mask),
+		.migratetype = gfpflags_to_migratetype(gfp_mask), // 根据gfp_mask得出页面migratetype，是MIGRATE_RECLAIMABLE？MIGRATE_MOVABLE？
 	};
 
 	gfp_mask &= gfp_allowed_mask;
@@ -3228,7 +3228,7 @@ retry_cpuset:
 
 	/* First allocation attempt */
 	alloc_mask = gfp_mask|__GFP_HARDWALL;
-	page = get_page_from_freelist(alloc_mask, order, alloc_flags, &ac);
+	page = get_page_from_freelist(alloc_mask, order, alloc_flags, &ac); //尝试分配物理页面
 	if (unlikely(!page)) {
 		/*
 		 * Runtime PM, block IO and its error handling path
@@ -3238,7 +3238,7 @@ retry_cpuset:
 		alloc_mask = memalloc_noio_flags(gfp_mask);
 		ac.spread_dirty_pages = false;
 
-		page = __alloc_pages_slowpath(alloc_mask, order, &ac);
+		page = __alloc_pages_slowpath(alloc_mask, order, &ac); //如果分配失败，则在这里进行很多特殊场景的处理
 	}
 
 	if (kmemcheck_enabled && page)
@@ -3254,7 +3254,7 @@ out:
 	 * check if the cpuset changed during allocation and if so, retry.
 	 */
 	if (unlikely(!page && read_mems_allowed_retry(cpuset_mems_cookie)))
-		goto retry_cpuset;
+		goto retry_cpuset; //重试页面分配
 
 	return page;
 }
@@ -5188,6 +5188,8 @@ static void __paginginit free_area_init_core(struct pglist_data *pgdat)
 	unsigned long zone_start_pfn = pgdat->node_start_pfn;
 	int ret;
 
+    pr_notice("free_area_init_core: ---- nid = %d, zone_start_pfn = 0x%08x\n", nid, zone_start_pfn);
+
 	pgdat_resize_init(pgdat);
 #ifdef CONFIG_NUMA_BALANCING
 	spin_lock_init(&pgdat->numabalancing_migrate_lock);
@@ -5210,12 +5212,12 @@ static void __paginginit free_area_init_core(struct pglist_data *pgdat)
 		 * is used by this zone for memmap. This affects the watermark
 		 * and per-cpu initialisations
 		 */
-		memmap_pages = calc_memmap_size(size, realsize);
-		if (!is_highmem_idx(j)) {
+		memmap_pages = calc_memmap_size(size, realsize); // 计算struct page本省需要耗费的空间大小
+		if (!is_highmem_idx(j)) { // HIGHMEM不计算映射耗费page数目
 			if (freesize >= memmap_pages) {
 				freesize -= memmap_pages;
 				if (memmap_pages)
-					printk(KERN_DEBUG
+					printk(KERN_WARNING
 					       "  %s zone: %lu pages used for memmap\n",
 					       zone_names[j], memmap_pages);
 			} else
@@ -5227,7 +5229,7 @@ static void __paginginit free_area_init_core(struct pglist_data *pgdat)
 		/* Account for reserved pages */
 		if (j == 0 && freesize > dma_reserve) {
 			freesize -= dma_reserve;
-			printk(KERN_DEBUG "  %s zone: %lu pages reserved\n",
+			printk(KERN_WARNING "  %s zone: %lu pages reserved\n",
 					zone_names[0], dma_reserve);
 		}
 
@@ -5319,10 +5321,11 @@ static void __init_refok alloc_node_mem_map(struct pglist_data *pgdat)
 #endif /* CONFIG_FLAT_NODE_MEM_MAP */
 }
 
+// zone_sizes_init中计算出每个zone大小以及zone之间的hole，然后调用free_area_init_node创建内存节点的zone。
 void __paginginit free_area_init_node(int nid, unsigned long *zones_size,
 		unsigned long node_start_pfn, unsigned long *zholes_size)
 {
-	pg_data_t *pgdat = NODE_DATA(nid);
+	pg_data_t *pgdat = NODE_DATA(nid); // 获取nid对应的Node数据结构
 	unsigned long start_pfn = 0;
 	unsigned long end_pfn = 0;
 
@@ -5339,7 +5342,7 @@ void __paginginit free_area_init_node(int nid, unsigned long *zones_size,
 		end_pfn ? ((u64)end_pfn << PAGE_SHIFT) - 1 : 0);
 #endif
 	calculate_node_totalpages(pgdat, start_pfn, end_pfn,
-				  zones_size, zholes_size);
+				  zones_size, zholes_size); // 计算Node的page数目，1GB/4KB=262144
 
 	alloc_node_mem_map(pgdat);
 #ifdef CONFIG_FLAT_NODE_MEM_MAP
@@ -5348,7 +5351,7 @@ void __paginginit free_area_init_node(int nid, unsigned long *zones_size,
 		(unsigned long)pgdat->node_mem_map);
 #endif
 
-	free_area_init_core(pgdat);
+	free_area_init_core(pgdat); // 逐个初始化Node中的Zone
 }
 
 #ifdef CONFIG_HAVE_MEMBLOCK_NODE_MAP
@@ -6022,15 +6025,16 @@ static void setup_per_zone_lowmem_reserve(void)
 
 static void __setup_per_zone_wmarks(void)
 {
-	unsigned long pages_min = min_free_kbytes >> (PAGE_SHIFT - 10);
+	unsigned long pages_min = min_free_kbytes >> (PAGE_SHIFT - 10); // 2863 / 4 = 715 
 	unsigned long lowmem_pages = 0;
 	struct zone *zone;
 	unsigned long flags;
+    pr_notice("__setup_per_zone_wmarks: ---- pages_min = %d, min_free_kbytes = %d\n", pages_min, min_free_kbytes);
 
 	/* Calculate total number of !ZONE_HIGHMEM pages */
 	for_each_zone(zone) {
 		if (!is_highmem(zone))
-			lowmem_pages += zone->managed_pages;
+			lowmem_pages += zone->managed_pages; // 只计算lowmem
 	}
 
 	for_each_zone(zone) {
@@ -6064,6 +6068,7 @@ static void __setup_per_zone_wmarks(void)
 
 		zone->watermark[WMARK_LOW]  = min_wmark_pages(zone) + (tmp >> 2);
 		zone->watermark[WMARK_HIGH] = min_wmark_pages(zone) + (tmp >> 1);
+        pr_notice("__setup_per_zone_wmarks: ---- zone->watermark[WMARK_LOW] = %d, zone->watermark[WMARK_HIGH] = %d\n", zone->watermark[WMARK_LOW], zone->watermark[WMARK_HIGH]);
 
 		__mod_zone_page_state(zone, NR_ALLOC_BATCH,
 			high_wmark_pages(zone) - low_wmark_pages(zone) -
@@ -6162,8 +6167,10 @@ int __meminit init_per_zone_wmark_min(void)
 	unsigned long lowmem_kbytes;
 	int new_min_free_kbytes;
 
-	lowmem_kbytes = nr_free_buffer_pages() * (PAGE_SIZE >> 10);
-	new_min_free_kbytes = int_sqrt(lowmem_kbytes * 16);
+	lowmem_kbytes = nr_free_buffer_pages() * (PAGE_SIZE >> 10); // 等于lowmem_kbytes=512596
+	new_min_free_kbytes = int_sqrt(lowmem_kbytes * 16); // 2863
+
+    pr_notice("init_per_zone_wmark_min: --- lowmem_kbytes = %d, new_min_free_kbytes = %d",  lowmem_kbytes, new_min_free_kbytes);
 
 	if (new_min_free_kbytes > user_min_free_kbytes) {
 		min_free_kbytes = new_min_free_kbytes;

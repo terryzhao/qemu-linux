@@ -125,6 +125,7 @@ static void __init arm_adjust_dma_zone(unsigned long *size, unsigned long *hole,
 void __init setup_dma_zone(const struct machine_desc *mdesc)
 {
 #ifdef CONFIG_ZONE_DMA
+    pr_notice("setup_dma_zone --- dma_zone_size = 0x%08x\n", mdesc->dma_zone_size);
 	if (mdesc->dma_zone_size) {
 		arm_dma_zone_size = mdesc->dma_zone_size;
 		arm_dma_limit = PHYS_OFFSET + arm_dma_zone_size - 1;
@@ -279,6 +280,11 @@ void __init arm_memblock_init(const struct machine_desc *mdesc)
 	memblock_dump_all();
 }
 
+/*
+ * 内存管理将一个内存Node分成若干个zone进行管理，定义zone类型在enum zone_type中。
+ * Vexpress只定义了NORMAL和HIGHMEM两种，zone的初始化在bootmem_init中进行。
+ * 通过find_limits找出物理内存开始帧号min_low_pfn、结束帧号max_pfn、NORMAL区域的结束帧号max_low_pfn
+*/
 void __init bootmem_init(void)
 {
 	unsigned long min, max_low, max_high;
@@ -286,7 +292,7 @@ void __init bootmem_init(void)
 	memblock_allow_resize();
 	max_low = max_high = 0;
 
-	find_limits(&min, &max_low, &max_high);
+	find_limits(&min, &max_low, &max_high); // min_now_pfn=0x60000 max_low_pfn=0x8f800 max_pfn=0xa0000，通过全局变量memblock获取信息
 
 	early_memtest((phys_addr_t)min << PAGE_SHIFT,
 		      (phys_addr_t)max_low << PAGE_SHIFT);
@@ -307,7 +313,7 @@ void __init bootmem_init(void)
 	 * the sparse mem_map arrays initialized by sparse_init()
 	 * for memmap_init_zone(), otherwise all PFNs are invalid.
 	 */
-	zone_sizes_init(min, max_low, max_high);
+	zone_sizes_init(min, max_low, max_high); // 从min_low_pfn到max_low_pfn是ZONE_NORMAL，max_low_pfn到max_pfn是ZONE_HIGHMEM
 
 	/*
 	 * This doesn't seem to be used by the Linux memory manager any
@@ -317,6 +323,8 @@ void __init bootmem_init(void)
 	min_low_pfn = min;
 	max_low_pfn = max_low;
 	max_pfn = max_high;
+
+    pr_notice("bootmem_init: min_low_pfn = 0x%08x, max_low_pfn = 0x%08x, max_pfn = 0x%08x\n", min_low_pfn, max_low_pfn, max_pfn);
 }
 
 /*

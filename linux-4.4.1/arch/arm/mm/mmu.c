@@ -246,7 +246,7 @@ __setup("noalign", noalign_setup);
 static struct mem_type mem_types[] = {
 	[MT_DEVICE] = {		  /* Strongly ordered / ARMv6 shared device */
 		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_SHARED |
-				  L_PTE_SHARED,
+				  L_PTE_SHARED, //注意这里都是L_PTE_*类型，需要在写入MMU对应PTE时进行转换。
 		.prot_pte_s2	= s2_policy(PROT_PTE_S2_DEVICE) |
 				  s2_policy(L_PTE_S2_MT_DEV_SHARED) |
 				  L_PTE_SHARED,
@@ -714,7 +714,7 @@ EXPORT_SYMBOL(phys_mem_access_prot);
 
 static void __init *early_alloc_aligned(unsigned long sz, unsigned long align)
 {
-	void *ptr = __va(memblock_alloc(sz, align));
+	void *ptr = __va(memblock_alloc(sz, align)); //基于memblock进行分配，这里分配4096B，刚好是一页大小
 	memset(ptr, 0, sz);
 	return ptr;
 }
@@ -726,26 +726,26 @@ static void __init *early_alloc(unsigned long sz)
 
 static pte_t * __init early_pte_alloc(pmd_t *pmd, unsigned long addr, unsigned long prot)
 {
-	if (pmd_none(*pmd)) {
-		pte_t *pte = early_alloc(PTE_HWTABLE_OFF + PTE_HWTABLE_SIZE);
-		__pmd_populate(pmd, __pa(pte), prot);
+	if (pmd_none(*pmd)) { //如果PGD的内容为空，即PTE还没有创建，择取建立页面。
+		pte_t *pte = early_alloc(PTE_HWTABLE_OFF + PTE_HWTABLE_SIZE); //分配512+512个PTE页表项
+		__pmd_populate(pmd, __pa(pte), prot); //生成pmd页表目录，并刷入RAM
 	}
 	BUG_ON(pmd_bad(*pmd));
-	return pte_offset_kernel(pmd, addr);
+	return pte_offset_kernel(pmd, addr); //返回当前addr对应的PTE地址
 }
 
-//虚拟地址区间非1M对齐时，如下方式MMU映射，即创建页表：
+//虚拟地址区间非1M对齐时，如下方式MMU映射，即创建页表： 这里的pmd=pud=pgd
 static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
 				  unsigned long end, unsigned long pfn,
 				  const struct mem_type *type)
 {
     /* 此时申请页表的地址（一个页表项4byte，一个pmd有512个页表项）页表的基地址会赋值给pmd ，__pmd_populate中完成赋值*/
-	pte_t *pte = early_pte_alloc(pmd, addr, type->prot_l1);
+	pte_t *pte = early_pte_alloc(pmd, addr, type->prot_l1); //使用prot_l1作为参数，创建PGD页表目录,返回addr对应的pte地址
 	do {
         /*为每一页配置页表属性，注意此时用到了mem_types定义的属性*/
-		set_pte_ext(pte, pfn_pte(pfn, __pgprot(type->prot_pte)), 0);
+		set_pte_ext(pte, pfn_pte(pfn, __pgprot(type->prot_pte)), 0); //调用体系结构相关汇编，配置PTE
 		pfn++;
-	} while (pte++, addr += PAGE_SIZE, addr != end);
+	} while (pte++, addr += PAGE_SIZE, addr != end); //遍历[addr, end)区间内存，以PAGE_SIZE为步长
 }
 
 
@@ -926,7 +926,7 @@ static void __init create_mapping(struct map_desc *md)
 	}
 
     /* mem_type中保存了页表属性和页中间目录的属性 */
-	type = &mem_types[md->type];
+	type = &mem_types[md->type]; //找到对应的struct mem_type
 
 #ifndef CONFIG_ARM_LPAE
 	/*
@@ -938,9 +938,9 @@ static void __init create_mapping(struct map_desc *md)
 	}
 #endif
 
-	addr = md->virtual & PAGE_MASK;
+	addr = md->virtual & PAGE_MASK; //对齐到页
     /*phys对应物理地址，本函数实际上就是把phys映射到addr*/
-	phys = __pfn_to_phys(md->pfn);
+	phys = __pfn_to_phys(md->pfn); //页到物理地址转换
 	length = PAGE_ALIGN(md->length + (md->virtual & ~PAGE_MASK));
 
 	if (type->prot_l1 == 0 && ((addr | phys | length) & ~SECTION_MASK)) {
@@ -954,7 +954,7 @@ static void __init create_mapping(struct map_desc *md)
         1 init_task进程的页全局目录地址：swapper_pg_dir
         以后每个进程都从这里拷贝页全局目录到各自的pgd里dup_mm->pgd_alloc中实现,cpu_switch_mm中切换。
     */
-	pgd = pgd_offset_k(addr);
+	pgd = pgd_offset_k(addr); //根据addr找到对应虚拟地址对应的pgd地址
 	end = addr + length;
 	do {
 		unsigned long next = pgd_addr_end(addr, end);
@@ -964,7 +964,7 @@ static void __init create_mapping(struct map_desc *md)
 
 		phys += next - addr;
 		addr = next;
-	} while (pgd++, addr != end);
+	} while (pgd++, addr != end); //遍历区间地址，步长是PGDIR_SIZE，即2MB大小的空间
 }
 
 /*
@@ -1108,7 +1108,7 @@ void __init debug_ll_io_init(void)
 #endif
 
 static void * __initdata vmalloc_min =
-	(void *)(VMALLOC_END - (240 << 20) - VMALLOC_OFFSET);
+	(void *)(VMALLOC_END - (240 << 20) - VMALLOC_OFFSET); // vmalloc_min为VMALLOC_END向下偏移240MB
 
 /*
  * vmalloc=size forces the vmalloc area to be exactly 'size'
@@ -1181,7 +1181,7 @@ void __init sanity_check_meminfo(void)
 		if (!highmem) {
 			if (block_end > arm_lowmem_limit) {
 				if (reg->size > size_limit)
-					arm_lowmem_limit = vmalloc_limit;
+					arm_lowmem_limit = vmalloc_limit; //此种情况arm_lowmem_limit等于vmalloc_min
 				else
 					arm_lowmem_limit = block_end;
 			}
@@ -1212,7 +1212,7 @@ void __init sanity_check_meminfo(void)
 	if (should_use_highmem)
 		pr_notice("Consider using a HIGHMEM enabled kernel.\n");
 
-	high_memory = __va(arm_lowmem_limit - 1) + 1;
+	high_memory = __va(arm_lowmem_limit - 1) + 1;  //所以high_memory也即vmalloc_min
 
 	/*
 	 * Round the memblock limit down to a pmd size.  This
@@ -1224,9 +1224,13 @@ void __init sanity_check_meminfo(void)
 	if (!memblock_limit)
 		memblock_limit = arm_lowmem_limit;
 
-	memblock_set_current_limit(memblock_limit);
+	memblock_set_current_limit(memblock_limit); //根据arm_lowmem_limit来作为ZONE_NORMAL的终点
 }
 
+/*
+ * prepare_page_table用于清空页表项，其实清空了三段地址页表项，0~MODULES_VADDR、MODULES_VADDR~PAGE_OFFSET、0xef800000~VMALLOC_START
+ *
+*/
 static inline void prepare_page_table(void)
 {
 	unsigned long addr;
@@ -1235,28 +1239,28 @@ static inline void prepare_page_table(void)
 	/*
 	 * Clear out all the mappings below the kernel image.
 	 */
-	for (addr = 0; addr < MODULES_VADDR; addr += PMD_SIZE)
+	for (addr = 0; addr < MODULES_VADDR; addr += PMD_SIZE) // 清除0~MODULES_VADDR地址段一级页表
 		pmd_clear(pmd_off_k(addr));
 
 #ifdef CONFIG_XIP_KERNEL
 	/* The XIP kernel is mapped in the module area -- skip over it */
 	addr = ((unsigned long)_etext + PMD_SIZE - 1) & PMD_MASK;
 #endif
-	for ( ; addr < PAGE_OFFSET; addr += PMD_SIZE)
+	for ( ; addr < PAGE_OFFSET; addr += PMD_SIZE) // 清除MODULES_VADDR~PAGE_OFFSET地址段一级页表
 		pmd_clear(pmd_off_k(addr));
 
 	/*
 	 * Find the end of the first block of lowmem.
 	 */
 	end = memblock.memory.regions[0].base + memblock.memory.regions[0].size;
-	if (end >= arm_lowmem_limit)
+	if (end >= arm_lowmem_limit) // end=0x60000000+0x40000000, arm_lowmem_limit=0x8f800000
 		end = arm_lowmem_limit;
 
 	/*
 	 * Clear out all the kernel space mappings, except for the first
 	 * memory bank, up to the vmalloc region.
 	 */
-	for (addr = __phys_to_virt(end);
+	for (addr = __phys_to_virt(end); // 此处end取0x8f800000，转成虚拟地址0xef800000。清除0xef800000~VMALLOC_START地址段一级页表
 	     addr < VMALLOC_START; addr += PMD_SIZE)
 		pmd_clear(pmd_off_k(addr));
 }
@@ -1266,7 +1270,7 @@ static inline void prepare_page_table(void)
 #define SWAPPER_PG_DIR_SIZE	(PAGE_SIZE + \
 				 PTRS_PER_PGD * PTRS_PER_PMD * sizeof(pmd_t))
 #else
-#define SWAPPER_PG_DIR_SIZE	(PTRS_PER_PGD * sizeof(pgd_t))
+#define SWAPPER_PG_DIR_SIZE	(PTRS_PER_PGD * sizeof(pgd_t)) //2048*8B=16KB
 #endif
 
 /*
@@ -1295,6 +1299,9 @@ void __init arm_mm_memblock_reserve(void)
  * device mappings.  This means earlycon can be used to debug this function
  * Any other function or debugging method which may touch any device _will_
  * crash the kernel.
+ * 还有一部分内存映射在devicemaps_init中进行，对vectors进行映射：
+ * MT_HIGH_VECTORS：虚拟地址-0xffff0000~0xffff1000，对应物理地址是0x8f7fe000~0x8f7ff000。
+ * MT_LOW_VECTORS：虚拟地址-0xffff1000~0xffff2000，对应的物理地址是0x8f7ff000~0x8f800000。
  */
 static void __init devicemaps_init(const struct machine_desc *mdesc)
 {
@@ -1358,13 +1365,13 @@ static void __init devicemaps_init(const struct machine_desc *mdesc)
 #else
 	map.type = MT_LOW_VECTORS;
 #endif
-	create_mapping(&map);
+	create_mapping(&map); // 将虚拟地址0xffff0000 - 0xffff1000映射到0x8f7fe000 - 0x8f7ff000，属性为MT_HIGH_VECTORS
 
 	if (!vectors_high()) {
 		map.virtual = 0;
 		map.length = PAGE_SIZE * 2;
 		map.type = MT_LOW_VECTORS;
-		create_mapping(&map);
+		create_mapping(&map); // 将虚拟地址0xffff1000 - 0xffff2000映射到0x8f7ff000 - 0x8f800000，属性为MT_LOW_VECTORS
 	}
 
 	/* Now create a kernel read-only mapping */
@@ -1410,20 +1417,27 @@ static void __init kmap_init(void)
 			_PAGE_KERNEL_TABLE);
 }
 
+/*
+ * 真正创建页表是在map_lowmem创建了两块区间映射区间一0x60000000~0x60800000(0xc0000000~0xc0800000)和区间二0x60800000~0x8f800000(0xc0800000~0xef800000)。
+ * 区间一：具有读写执行权限，主要用于存放Kernel代码数据段，还包括swapper_pg_dir内容。
+ * 区间二：具有读写，不允许执行，是Normal Memory部分。
+ * 可以看出这两个区间虚拟到物理地址映射是线性映射，但是存在在末尾存在特殊两页不是线性映射。
+*/
+
 static void __init map_lowmem(void)
 {
 	struct memblock_region *reg;
 	phys_addr_t kernel_x_start = round_down(__pa(_stext), SECTION_SIZE);
-	phys_addr_t kernel_x_end = round_up(__pa(__init_end), SECTION_SIZE);
+	phys_addr_t kernel_x_end = round_up(__pa(__init_end), SECTION_SIZE); // kernel_x_start=0x60000000, kernel_x_end=60800000
 
 	/* Map all the lowmem memory banks. */
 	for_each_memblock(memory, reg) {
 		phys_addr_t start = reg->base;
-		phys_addr_t end = start + reg->size;
+		phys_addr_t end = start + reg->size; // start=0x60000000, end=0x8f800000
 		struct map_desc map;
 
 		if (end > arm_lowmem_limit)
-			end = arm_lowmem_limit;
+			end = arm_lowmem_limit;  // 因为arm_lowmem_limit=0x8f800000，所以end=0x8f800000
 		if (start >= end)
 			break;
 
@@ -1433,6 +1447,7 @@ static void __init map_lowmem(void)
 			map.length = end - start;
 			map.type = MT_MEMORY_RWX;
 
+			//为低端内存创建页表
 			create_mapping(&map);
 		} else if (start >= kernel_x_end) {
 			map.pfn = __phys_to_pfn(start);
@@ -1457,7 +1472,7 @@ static void __init map_lowmem(void)
 			map.length = kernel_x_end - kernel_x_start;
 			map.type = MT_MEMORY_RWX;
 
-			create_mapping(&map);
+			create_mapping(&map); // 创建虚拟地址0xc0000000 - 0xc0800000到物理地址0x60000000 - 0x60800000的映射关系，属性为MT_MEMORY_RWX
 
 			if (kernel_x_end < end) {
 				map.pfn = __phys_to_pfn(kernel_x_end);
@@ -1465,7 +1480,7 @@ static void __init map_lowmem(void)
 				map.length = end - kernel_x_end;
 				map.type = MT_MEMORY_RW;
 
-				create_mapping(&map);
+				create_mapping(&map); // 创建虚拟地址0xc0800000 - 0xef800000到物理地址0x60800000 - 0x8f800000的映射关系，属性为MT_MEMORY_RW
 			}
 		}
 	}

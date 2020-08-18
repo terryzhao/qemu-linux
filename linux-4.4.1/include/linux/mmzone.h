@@ -36,9 +36,9 @@
 #define PAGE_ALLOC_COSTLY_ORDER 3
 
 enum {
-	MIGRATE_UNMOVABLE,   //不可移动页, 核心内核分配的大多数内存属于该类别
-	MIGRATE_MOVABLE,     //可移动页, 属于用户空间应用程序的页属于该类别. 它们是通过页表映射的, 如果它们复制到新位置，页表项可以相应地更新，应用程序不会注意到任何事
-	MIGRATE_RECLAIMABLE, //可回收页, 例如，映射自文件的数据属于该类别,kswapd守护进程会根据可回收页访问的频繁程度，周期性释放此类内存. , 页面回收本身就是一个复杂的过程内核会在可回收页占据了太多内存时进行回收, 在内存短缺(即分配失败)时也可以发起页面回收.
+	MIGRATE_UNMOVABLE,   // 页框内容不可移动，在内存中位置必须固定，无法移动到其它地方，核心内核分配的大部分页面都属于这一类
+	MIGRATE_MOVABLE,     // 页框内容可回收，不能直接移动。因为还可以从某些源重建页面，比如映射文件的数据属于这种类别，kswapd会按照一定的规则，周期性回收这类页面 
+	MIGRATE_RECLAIMABLE, // 页框内容可移动，属于用户空间应用程序的页属于此类页面，他们是通过页表映射的，因此只需要更新页表项，并把数据复制到新位置就可以了。当然要注意，一个页面可能被多个进程共享，对应着多个页表项
 	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */ //是per_cpu_pageset, 即用来表示每CPU页框高速缓存的数据结构中的链表的迁移类型数目
 	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES, //在罕见的情况下，内核需要分配一个高阶的页面块而不能休眠.如果向具有特定可移动性的列表请求分配内存失败，这种紧急情况下可从MIGRATE_HIGHATOMIC中分配内存
 #ifdef CONFIG_CMA
@@ -60,7 +60,7 @@ enum {
      * 目前, Marek Szyprowski和Michal Nazarewicz实现了一套全新的Contiguous Memory Allocator. 
      * 通过这套机制, 我们可以做到不预留内存，这些内存平时是可用的，只有当需要的时候才被分配给Camera，HDMI等设备.
 	 */
-	MIGRATE_CMA, //Linux内核最新的连续内存分配器(CMA), 用于避免预留大块内存
+	MIGRATE_CMA, //预留一段内存给驱动使用，但当驱动不用的时候，伙伴系统可以分配给用户进程用作匿名内存或者页缓存。而当驱动需要使用时，就将进程占用的内存通过回收或者迁移的方式将之前占用的预留内存腾出来，供驱动使用 
 #endif
 #ifdef CONFIG_MEMORY_ISOLATION
 	MIGRATE_ISOLATE,	/* can't allocate from here */ //是一个特殊的虚拟区域, 用于跨越NUMA结点移动物理内存页. 在大型系统上, 它有益于将物理内存页移动到接近于使用该页最频繁的CPU.
@@ -245,6 +245,7 @@ struct lruvec {
 /* LRU Isolation modes. */
 typedef unsigned __bitwise__ isolate_mode_t;
 
+// 每个zone在系统初始化的时候会计算水位值：WMARK_MIN、WMARK_LOW、WMARK_HIGH。这些参数在kswapd回收页面内存的时候会用到
 enum zone_watermarks {
 	WMARK_MIN,
 	WMARK_LOW,
@@ -335,6 +336,9 @@ enum zone_type {
 
 #ifndef __GENERATING_BOUNDS_H
 
+// 物理内存页面需要加入到伙伴系统中，伙伴系统是一种动态存储管理方法。
+// 在用户提出申请时，分配一块大小合适的内存块，反之在释放时回收内存块。
+// 伙伴系统分配对空闲页面的管理是根据两个属性：页的大小，2的order次幂个页；和页的迁移类型。
 struct zone {
 	/* Read-mostly fields */
 
@@ -378,7 +382,7 @@ struct zone {
 	 * Flags for a pageblock_nr_pages block. See pageblock-flags.h.
 	 * In SPARSEMEM, this map is stored in struct mem_section
 	 */
-	unsigned long		*pageblock_flags;
+	unsigned long		*pageblock_flags; // zone中pageblock对应的MIGRATE_TYPE
 #endif /* CONFIG_SPARSEMEM */
 
 #ifdef CONFIG_NUMA
@@ -483,7 +487,7 @@ struct zone {
 
 	ZONE_PADDING(_pad1_)
 	/* free areas of different sizes */
-	struct free_area	free_area[MAX_ORDER];
+	struct free_area	free_area[MAX_ORDER]; // 按照order区分的空闲页块链表
 
 	/* zone flags, see below */
 	unsigned long		flags;

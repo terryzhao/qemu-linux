@@ -226,10 +226,10 @@ __do_page_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 	struct vm_area_struct *vma;
 	int fault;
 
-	vma = find_vma(mm, addr);
+	vma = find_vma(mm, addr); // 根据地址查找vma
 	fault = VM_FAULT_BADMAP;
 	if (unlikely(!vma))
-		goto out;
+		goto out;  // 返回VM_FAULT_BADMAP错误类型
 	if (unlikely(vma->vm_start > addr))
 		goto check_stack;
 
@@ -238,7 +238,7 @@ __do_page_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 	 * memory access, so we can handle it.
 	 */
 good_area:
-	if (access_error(fsr, vma)) {
+	if (access_error(fsr, vma)) { // 判断当前vma是否可写或者可执行，如果否则返回VM_FAULT_BADACCESS错误
 		fault = VM_FAULT_BADACCESS;
 		goto out;
 	}
@@ -265,8 +265,8 @@ do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	if (notify_page_fault(regs, fsr))
 		return 0;
 
-	tsk = current;
-	mm  = tsk->mm;
+	tsk = current; // 获取当前进程的task_struct
+	mm  = tsk->mm; // 获取进程内存管理结构体mm_struct
 
 	/* Enable interrupts if they were enabled in the parent context. */
 	if (interrupts_enabled(regs))
@@ -290,10 +290,10 @@ do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	 * we can bug out early if this is from code which shouldn't.
 	 */
 	if (!down_read_trylock(&mm->mmap_sem)) {
-		if (!user_mode(regs) && !search_exception_tables(regs->ARM_pc))
+		if (!user_mode(regs) && !search_exception_tables(regs->ARM_pc)) // 发生在内核空间，且没有在exception tables查询到该地址，跳转到no_context
 			goto no_context;
 retry:
-		down_read(&mm->mmap_sem);
+		down_read(&mm->mmap_sem); // 用户空间则睡眠等待锁持有者释放锁
 	} else {
 		/*
 		 * The above down_read_trylock() might have succeeded in
@@ -348,15 +348,15 @@ retry:
 	/*
 	 * Handle the "normal" case first - VM_FAULT_MAJOR / VM_FAULT_MINOR
 	 */
-	if (likely(!(fault & (VM_FAULT_ERROR | VM_FAULT_BADMAP | VM_FAULT_BADACCESS))))
+	if (likely(!(fault & (VM_FAULT_ERROR | VM_FAULT_BADMAP | VM_FAULT_BADACCESS)))) // 没有错误，说明缺页中断处理完成
 		return 0;
 
 	/*
 	 * If we are in kernel mode at this point, we
 	 * have no context to handle this fault with.
 	 */
-	if (!user_mode(regs))
-		goto no_context;
+	if (!user_mode(regs)) // 判断CPSR寄存器的低4位，CPSR的低5位表示当前所处的模式。如果低4位位0，则处于用户态。见下面CPSRM4~M0细节
+		goto no_context;  // 进行内核空间错误处理
 
 	if (fault & VM_FAULT_OOM) {
 		/*
@@ -364,7 +364,7 @@ retry:
 		 * userspace (which will retry the fault, or kill us if we
 		 * got oom-killed)
 		 */
-		pagefault_out_of_memory();
+		pagefault_out_of_memory(); // 进行OOM处理，然后返回
 		return 0;
 	}
 
@@ -385,11 +385,11 @@ retry:
 			SEGV_ACCERR : SEGV_MAPERR;
 	}
 
-	__do_user_fault(tsk, addr, fsr, sig, code, regs);
+	__do_user_fault(tsk, addr, fsr, sig, code, regs); // 用户模式下错误处理，通过给用户进程发信号：SIGBUS/SIGSEGV
 	return 0;
 
 no_context:
-	__do_kernel_fault(mm, addr, fsr, regs);
+	__do_kernel_fault(mm, addr, fsr, regs); // 错误发生在内核模式，如果内核无法处理，此处产生oops错误
 	return 0;
 }
 #else					/* CONFIG_MMU */
@@ -544,13 +544,13 @@ hook_fault_code(int nr, int (*fn)(unsigned long, unsigned int, struct pt_regs *)
 asmlinkage void __exception
 do_DataAbort(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 {
-	const struct fsr_info *inf = fsr_info + fsr_fs(fsr);
+	const struct fsr_info *inf = fsr_info + fsr_fs(fsr); // 根据fsr从fsr_info中找到对应的处理函数
 	struct siginfo info;
 
-	if (!inf->fn(addr, fsr & ~FSR_LNX_PF, regs))
+	if (!inf->fn(addr, fsr & ~FSR_LNX_PF, regs)) // 根据fsr进行处理
 		return;
 
-	pr_alert("Unhandled fault: %s (0x%03x) at 0x%08lx\n",
+	pr_alert("Unhandled fault: %s (0x%03x) at 0x%08lx\n", // 下面都是无法处理的异常
 		inf->name, fsr, addr);
 	show_pte(current->mm, addr);
 

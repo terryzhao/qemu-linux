@@ -25,6 +25,24 @@
 
 #include "slab.h"
 
+// 每个slab由多少个页面组成？
+// 每个slab由一个或多个连续页面组成，最低一个，物理连续。
+
+//slab需要的物理内存在什么时候分配？
+//首先kmem_cache_create是并不分配页面，等到kmem_cache_alloc时才有可能分配页面。
+//首先从本地缓冲池和共享缓冲池、三大链表都没有空闲对象时，才会去分配2^gfporder个页面，然后挂入到slabs_free中。
+//
+//slab描述符中空闲对象过多，是否要回收？
+//有两种方式回收空闲对象：
+//
+//(1)使用kmem_cache_free释放对象，当本地和共享对象缓冲池中空闲对象数目ac->avail大于ac->limit时，系统会主动释放batchcount个对象。
+//当所有空闲数目大于系统空闲对象数目极限值，并且slab没有活跃对象时，可以销毁此slab，回收内存。
+//(2)系统注册了delayed_work，定时扫描slab描述符，回收一部分空闲对象，在cache_reap中实现。
+//
+//slab的cache colour着色区作用？
+//使不同slab上同一个相对位置slab对象的起始地址在高速缓存中相互错开，有利于改善高速缓存的性能。
+//另一个利用cache场景是Per-CPU类型本地对象缓冲池。两个优点：让一个对象尽可能地运行在同一个CPU上；访问Per-CPU类型本地对象缓冲池不需要获取额外自选锁。
+
 enum slab_state slab_state;
 LIST_HEAD(slab_caches); //slab_caches list 链表头
 DEFINE_MUTEX(slab_mutex);
@@ -387,6 +405,7 @@ out_free_cache:
 //该函数的入参name表示要创建的slab类型名称，size为该slab每个对象的大小，
 //align则是其内存对齐的标准， flags则表示申请内存的标识，
 //而ctor则是初始化每个对象的构造函数
+//创建slab描述符kmem_cache，此时并没有真正分配内存
 struct kmem_cache *
 kmem_cache_create(const char *name, size_t size, size_t align,
 		  unsigned long flags, void (*ctor)(void *))
@@ -844,6 +863,7 @@ static s8 size_index[24] = {
 	2,	/* 184 */
 	2	/* 192 */
 };
+// size_index的数值对应kmalloc_caches的下标，kmalloc_caches的内容由create_kmalloc_caches创建
 
 static inline int size_index_elem(size_t bytes)
 {

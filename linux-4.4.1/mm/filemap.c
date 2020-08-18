@@ -1518,7 +1518,7 @@ static void shrink_readahead_size_eio(struct file *filp,
  * @ppos:	current file position
  * @iter:	data destination
  * @written:	already copied
- *
+ * @loff_t: 字段 用来维护当前读写位置地址右移PAGE_SHIFT，移位的结果就是页号
  * This is a generic file read routine, and uses the
  * mapping->a_ops->readpage() function for the actual low-level stuff.
  *
@@ -1538,10 +1538,10 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 	unsigned int prev_offset;
 	int error = 0;
 
-	index = *ppos >> PAGE_CACHE_SHIFT;
-	prev_index = ra->prev_pos >> PAGE_CACHE_SHIFT;
+	index = *ppos >> PAGE_CACHE_SHIFT; /*计算本次读取的是文件中的第几个page*/
+	prev_index = ra->prev_pos >> PAGE_CACHE_SHIFT; /*上次读取的是第几个page*/ 
 	prev_offset = ra->prev_pos & (PAGE_CACHE_SIZE-1);
-	last_index = (*ppos + iter->count + PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
+	last_index = (*ppos + iter->count + PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT; /*要读取的最后一个page*/
 	offset = *ppos & ~PAGE_CACHE_MASK;
 
 	for (;;) {
@@ -1761,7 +1761,7 @@ generic_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 	loff_t *ppos = &iocb->ki_pos;
 	loff_t pos = *ppos;
 
-	if (iocb->ki_flags & IOCB_DIRECT) {
+	if (iocb->ki_flags & IOCB_DIRECT) { ////针对IOCB_DIRECT类型进程特殊操作，后续研究
 		struct address_space *mapping = file->f_mapping;
 		struct inode *inode = mapping->host;
 		size_t count = iov_iter_count(iter);

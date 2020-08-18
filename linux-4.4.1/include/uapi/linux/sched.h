@@ -5,15 +5,15 @@
  * cloning flags:
  */
 #define CSIGNAL		0x000000ff	/* signal mask to be sent at exit */
-#define CLONE_VM	0x00000100	/* set if VM shared between processes */
-#define CLONE_FS	0x00000200	/* set if fs info shared between processes */
-#define CLONE_FILES	0x00000400	/* set if open files shared between processes */
-#define CLONE_SIGHAND	0x00000800	/* set if signal handlers and blocked signals shared */
-#define CLONE_PTRACE	0x00002000	/* set if we want to let tracing continue on the child too */
-#define CLONE_VFORK	0x00004000	/* set if the parent wants the child to wake it up on mm_release */
-#define CLONE_PARENT	0x00008000	/* set if we want to have the same parent as the cloner */
+#define CLONE_VM	0x00000100	/* set if VM shared between processes 父子进程运行在同一个虚拟空间 */
+#define CLONE_FS	0x00000200	/* set if fs info shared between processes  父子进程共享文件系统信息 */
+#define CLONE_FILES	0x00000400	/* set if open files shared between processes  父子进程共享文件描述符表 */
+#define CLONE_SIGHAND	0x00000800	/* set if signal handlers and blocked signals shared  父子进程共享信号处理函数表 */
+#define CLONE_PTRACE	0x00002000	/* set if we want to let tracing continue on the child too  父进程被跟踪ptrace，子进程也会被跟踪 */
+#define CLONE_VFORK	0x00004000	/* set if the parent wants the child to wake it up on mm_release  在创建子进程时启动完成机制completion，wait_for_completion()会使父进程进入睡眠等待，知道子进程调用execve()或exit()释放虚拟内存资源 */
+#define CLONE_PARENT	0x00008000	/* set if we want to have the same parent as the cloner 新创建的进程是兄弟关系，而不是父子关系 */
 #define CLONE_THREAD	0x00010000	/* Same thread group? */
-#define CLONE_NEWNS	0x00020000	/* New mount namespace group */
+#define CLONE_NEWNS	0x00020000	/* New mount namespace group 父子进程不共享mount namespace */
 #define CLONE_SYSVSEM	0x00040000	/* share system V SEM_UNDO semantics */
 #define CLONE_SETTLS	0x00080000	/* create a new TLS for the child */
 #define CLONE_PARENT_SETTID	0x00100000	/* set the TID in the parent */
@@ -25,8 +25,8 @@
    and is now available for re-use. */
 #define CLONE_NEWUTS		0x04000000	/* New utsname namespace */
 #define CLONE_NEWIPC		0x08000000	/* New ipc namespace */
-#define CLONE_NEWUSER		0x10000000	/* New user namespace */
-#define CLONE_NEWPID		0x20000000	/* New pid namespace */
+#define CLONE_NEWUSER		0x10000000	/* New user namespace  子进程要创建新的User Namespace */
+#define CLONE_NEWPID		0x20000000	/* New pid namespace 创建一个新的PID namespace */
 #define CLONE_NEWNET		0x40000000	/* New network namespace */
 #define CLONE_IO		0x80000000	/* Clone io context */
 

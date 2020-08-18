@@ -78,7 +78,7 @@
 	mov	lr, pc
 	ldr	pc, [ip, #PROCESSOR_DABT_FUNC]
 #else
-	bl	CPU_DABORT_HANDLER
+	bl	CPU_DABORT_HANDLER  @ 指向v7_early_abort
 #endif
 	.endm
 
@@ -775,12 +775,12 @@ ENDPROC(__fiq_usr)
 ENTRY(__switch_to)
  UNWIND(.fnstart	)
  UNWIND(.cantunwind	)
-	add	ip, r1, #TI_CPU_SAVE
+	add	ip, r1, #TI_CPU_SAVE  @当前进程栈 --- arch\arm\include\asm\thread_info.h: struct cpu_context_save
  ARM(	stmia	ip!, {r4 - sl, fp, sp, lr} )	@ Store most regs on stack
  THUMB(	stmia	ip!, {r4 - sl, fp}	   )	@ Store most regs on stack
  THUMB(	str	sp, [ip], #4		   )
  THUMB(	str	lr, [ip], #4		   )
-	ldr	r4, [r2, #TI_TP_VALUE]
+	ldr	r4, [r2, #TI_TP_VALUE] @r2 指向的是要切换进程的 thread_info
 	ldr	r5, [r2, #TI_TP_VALUE + 4]
 #ifdef CONFIG_CPU_USE_DOMAINS
 	mrc	p15, 0, r6, c3, c0, 0		@ Get domain register

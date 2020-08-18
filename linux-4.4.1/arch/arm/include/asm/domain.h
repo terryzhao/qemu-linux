@@ -34,9 +34,10 @@
  * CPUs based on ARMv6+ or the Intel XSC3 core.
  */
 #ifndef CONFIG_IO_36
-#define DOMAIN_KERNEL	0
-#define DOMAIN_USER	1
-#define DOMAIN_IO	2
+//ARM PMD描述符bit[8:5]用于描述Domain，但ARM Linux只定义使用三个：
+#define DOMAIN_KERNEL	0  //用于内核空间
+#define DOMAIN_USER	1      //用于用户空间
+#define DOMAIN_IO	2      //用于I/O地址域
 #else
 #define DOMAIN_KERNEL	2
 #define DOMAIN_USER	1

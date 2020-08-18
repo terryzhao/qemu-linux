@@ -179,7 +179,7 @@ extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 #define pgd_offset(mm, addr)	((mm)->pgd + pgd_index(addr))
 
 /* to find an entry in a kernel page-table-directory */
-#define pgd_offset_k(addr)	pgd_offset(&init_mm, addr)
+#define pgd_offset_k(addr)	pgd_offset(&init_mm, addr) //实际就是addr右移PGDIR_SHIFT位，然后相对于init_mm.pgd即swapper_pg_dir的偏移。swapper_pg_dir是存放内核页表的地方
 
 #define pmd_none(pmd)		(!pmd_val(pmd))
 #define pmd_present(pmd)	(pmd_val(pmd))
